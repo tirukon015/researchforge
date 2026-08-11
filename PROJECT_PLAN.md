@@ -228,78 +228,94 @@ swappable implementations), then start on whichever paid API you are willing to
 fund, with Gemini's free tier as the fallback for development. The abstraction
 means the choice is reversible and costs one afternoon to switch.
 
-#### 🔒 **[LOCKED 2026-08-11] 2 — Embedding model → OpenAI `text-embedding-3-small` @ 1536 dims**
+#### 🔒 **[FINAL — LOCKED 2026-08-11] 2 — Embedding model → Jina `jina-embeddings-v3` @ 1024 dims**
 
 | Setting | Value |
 |---|---|
-| Provider | OpenAI |
-| Model | `text-embedding-3-small` |
-| **Dimensions** | **1536** (the model's native size) |
-| Max input | 8,191 tokens per request |
-| Postgres column | `vector(1536)` |
+| Provider | Jina AI |
+| Model | `jina-embeddings-v3` |
+| **Dimensions** | **1024** (the model's default; Matryoshka allows 32–1024) |
+| Max input | 8,192 tokens per request |
+| Languages | 89 |
+| Cost | **Free — 10M tokens, no credit card required** |
+| Postgres column | `vector(1024)` |
 | Index | HNSW, `vector_cosine_ops` |
 
-**Why this model.** Selected as the production embedding model, optimising for
-reliability, documentation quality, and maintainability over raw cost:
+**Decision history.** D6 was evaluated three times. Gemini `gemini-embedding-2`
+(free) and OpenAI `text-embedding-3-small` (paid) were each provisionally
+selected before this final re-evaluation, which ranked options against the
+owner's stated priorities — **cost first**, then reliability, marks, portfolio
+value, and beginner maintainability.
 
-1. **Indexes natively in pgvector.** 1536 < the 2,000-dimension HNSW/IVFFlat
-   ceiling, so no `halfvec` workaround and no dimension truncation.
-2. **The best-documented embedding model in existence.** For a
-   beginner-maintained project this is the decisive factor — when retrieval
-   misbehaves, an answer exists.
-3. **Very high stability.** Minimal risk of an API change mid-semester.
-4. **Portable.** API-based, so it behaves identically on macOS, Windows, and
-   the deployed backend.
-5. **Matryoshka support** — the vector can be truncated to 512 dims later,
-   cutting storage 3× with only a small accuracy loss, *without changing
-   models*. A genuine escape hatch if the free tier gets tight.
+### Why Jina won
 
-**Rejected: `text-embedding-3-large` (3072 dims).** Above pgvector's 2,000-dim
-index limit — the table could not be indexed with HNSW, forcing a full scan on
-every query. Would also cost ~6× more and roughly double storage, for a quality
-difference this project cannot measure. Architectural simplicity wins.
+1. **Genuinely free, no payment method.** 10M free tokens with no credit card.
+   A realistic 25-paper demo consumes ~265,000 tokens, so the allocation covers
+   roughly **37 full re-ingests** — ample headroom for iterating on chunking.
+2. **Asymmetric retrieval — the strongest academic argument.** The model ships
+   task-specific LoRA adapters: documents are embedded with
+   `retrieval.passage`, questions with `retrieval.query`. Questions and
+   passages are linguistically different objects, and encoding each with an
+   adapter trained for its role measurably improves retrieval. Most student RAG
+   projects embed both identically; this is demonstrable retrieval engineering.
+3. **Citable in the report.** Published and peer-reviewable —
+   [arXiv:2409.10173](https://arxiv.org/abs/2409.10173).
+4. **1024 dims indexes natively in pgvector** (limit is 2,000 for HNSW/IVFFlat).
+5. **8,192-token input** — roughly 32× the planned chunk size, so no silent
+   truncation is possible.
+6. **89 languages**, covering the multilingual-papers limitation (E10).
+7. **Simple REST API** — no SDK lock-in, no normalisation footguns.
 
-**Rejected: Gemini embeddings.** Free, but both Gemini models default to 3,072
-dims (unindexable) and `gemini-embedding-001` requires *manual* normalisation
-when truncated — omitting it yields silently wrong similarity scores with no
-error. Retained as the documented fallback if a serious blocker appears.
+### Why the alternatives were rejected
+
+| Option | Reason rejected |
+|---|---|
+| **Gemini `gemini-embedding-2`** | Free, but Google **cut free-tier quotas by 50–80% on 2025-12-07** and per-model embedding limits are **not published** — only visible inside an AI Studio dashboard. A semester cannot be planned around an invisible, already-slashed quota. Also defaults to 3,072 dims, which pgvector **cannot index**. |
+| **OpenAI `text-embedding-3-small`** | Technically excellent and best-documented, but **has no free tier** — requires a ~$5 minimum prepayment. Conflicts directly with priority #1. Retained as the documented paid upgrade path. |
+| **OpenAI `text-embedding-3-large`** | 3,072 dims — above pgvector's 2,000-dimension index ceiling. Table would be unindexable. |
+| **Cohere `embed-v4.0`** | Free tier is real but capped at 1,000 calls/month, sources **conflict** on the embed rate limit, and the trial key is **explicitly not licensed for production or commercial use** — weakens portfolio framing. |
+| **Local (`bge-small`, sentence-transformers)** | Free forever and zero API risk, but PyTorch does not fit free-tier container RAM, conflicting with university requirement #5 (deployable application). A **512-token input cap** would also *silently truncate* chunks with no error. Retained as a Milestone 12 evaluation benchmark. |
+
+### Storage impact (corrected)
+
+An earlier estimate of 15,000 chunks for 100 papers was wrong. A ~10,000-token
+paper at 1,000-character chunks yields ~40 chunks, so **100 papers ≈ 4,000
+chunks**:
+
+| Dimensions | Vectors + index + text | vs Supabase 500 MB free tier |
+|---|---|---|
+| 1024 (chosen) | **~36 MB** | ~7% — not a constraint |
+
+Storage does not constrain this decision at any candidate dimension.
 
 ### 💰 Cost control (mandatory)
 
-Embeddings are cheap but **not free**. Expected cost at ~$0.02 / 1M tokens:
-
-| Workload | Tokens | Cost |
-|---|---|---|
-| Embedding 100 papers (~10k words each) | ~1.3 M | **~$0.03** |
-| One user question | ~20 | ~$0.0000004 |
-| Realistic full project total | — | **well under $1** |
-
-A minimum prepaid balance (typically $5) is required to activate the API; that
-credit is expected to outlast the project. Controls that are **not optional**:
+The free allocation is finite, so the same discipline applies as for a paid API:
 
 - **Cache aggressively.** A chunk is embedded **once**, ever. Re-ingesting the
-  same paper must not re-embed it.
-- **Batch requests.** Send many chunks per API call, never one call per chunk.
-- **Never embed in a test.** All unit tests mock the provider — tests must be
-  free, fast, and deterministic.
-- **Set a hard spending limit** in the OpenAI dashboard as a backstop.
-- **Log token usage** per operation so cost is measurable, not guessed.
+  same paper must not re-embed unchanged content.
+- **Batch requests.** Many chunks per API call, never one call per chunk.
+- **Never call the API in a test.** All unit tests use a fake provider — tests
+  must be free, fast, offline, and deterministic.
+- **Log token usage** per operation so consumption is measured, not guessed.
 
 ### 🔑 Key handling (mandatory)
 
-- `OPENAI_API_KEY` lives **only** in `.env` (git-ignored) and in the host's
-  server-side environment variables.
+- `JINA_API_KEY` lives **only** in `.env` (git-ignored) and in the deployment
+  host's server-side environment variables.
 - **Never** in source code, never committed, never logged, and never behind a
   `NEXT_PUBLIC_` prefix — the browser must never see it.
 - All embedding calls are made **server-side from the FastAPI backend only**.
 
-**Reversibility.** Mitigated by design, not by luck:
-- `chunks.embedding_model` and `chunks.embedding_dimensions` columns record
-  what produced every vector.
-- An `EmbeddingProvider` interface (`src/rag/embeddings/`) keeps the provider a
-  configuration value, not a code dependency.
-- Any future migration adds a new column and backfills; it never overwrites.
+### Reversibility (design, not luck)
 
+- `chunks.embedding_model` and `chunks.embedding_dimensions` record what
+  produced every vector, so a partial migration can never silently mix vectors
+  from two models.
+- `src/rag/embeddings/base.py` defines a **provider-independent**
+  `EmbeddingProvider` interface. Switching providers is a configuration change
+  plus a re-index — not a rewrite.
+- Any future migration **adds** a column and backfills; it never overwrites.
 #### **[DECISION NEEDED] 3 — PDF text extraction library**
 Candidates: `pypdf` (pure Python, simple), `pdfplumber` (better layout and
 tables), `PyMuPDF` (fastest, best quality, but AGPL licence — matters for a

@@ -23,7 +23,7 @@
 -- ------------------------------------------------------------
 -- This teaches Postgres a new column type, `vector`, plus the
 -- distance operators used for similarity search. Without it,
--- `vector(1536)` below is an unknown type and the migration fails.
+-- `vector(1024)` below is an unknown type and the migration fails.
 CREATE EXTENSION IF NOT EXISTS vector;
 
 
@@ -67,7 +67,7 @@ COMMENT ON COLUMN papers.status IS
 -- 3. chunks — the searchable pieces of each paper, with vectors
 -- ------------------------------------------------------------
 -- A paper is split into overlapping chunks. Each chunk is embedded
--- into a 1536-number vector. Similarity search runs over this table.
+-- into a 1024-number vector. Similarity search runs over this table.
 CREATE TABLE IF NOT EXISTS chunks (
     id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 
@@ -87,11 +87,11 @@ CREATE TABLE IF NOT EXISTS chunks (
     section_title         text,
     token_count           integer,
 
-    -- ⚠️ 1536 is PERMANENT for this column.
-    -- It matches OpenAI text-embedding-3-small and sits under pgvector's
-    -- 2000-dimension limit for HNSW / IVFFlat indexes.
+    -- ⚠️ 1024 is PERMANENT for this column.
+    -- It matches jina-embeddings-v3 (default size) and sits well under
+    -- pgvector's 2000-dimension limit for HNSW / IVFFlat indexes.
     -- Changing it requires re-embedding every paper (see PROJECT_PLAN §F).
-    embedding             vector(1536),
+    embedding             vector(1024),
 
     -- Provenance: records WHICH model produced this vector. This is what
     -- makes a future provider migration safe — you can tell at a glance
@@ -111,7 +111,7 @@ COMMENT ON TABLE  chunks IS 'Searchable text chunks with their embedding vectors
 COMMENT ON COLUMN chunks.page_number IS
     'Source page. Required for citations — do not drop.';
 COMMENT ON COLUMN chunks.embedding IS
-    'vector(1536) from OpenAI text-embedding-3-small. Dimension is permanent.';
+    'vector(1024) from jina-embeddings-v3. Dimension is permanent.';
 COMMENT ON COLUMN chunks.embedding_model IS
     'Model that produced this vector. Enables safe provider migration.';
 

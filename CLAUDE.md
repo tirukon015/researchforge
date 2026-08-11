@@ -178,12 +178,41 @@ I must be able to continue this project from **Mac, Windows, or Linux**.
 | Backend / AI | Python + FastAPI |
 | Database | Supabase PostgreSQL |
 | Vector search | pgvector |
-| Frontend hosting | Vercel |
-| Backend hosting | Cloud host (TBD) |
-| LLM | API-based (**provider not yet chosen**) |
-| Embeddings | API or model (**not yet chosen**) |
+| Frontend hosting | Vercel (**ResearchForge project only**) |
+| Backend hosting | Cloud host (TBD — decision D7) |
+| LLM | API-based (**provider NOT yet chosen — decision D5**) |
+| Embeddings | 🔒 **Jina `jina-embeddings-v3` @ 1024 dims — FINAL** |
 
-**Do not install or commit to a specific AI provider or model until I approve
+### 🔒 Embedding configuration (FINAL — do not change without re-embedding)
+
+| Setting | Value |
+|---|---|
+| `EMBEDDING_PROVIDER` | `jina` |
+| `EMBEDDING_MODEL` | `jina-embeddings-v3` |
+| `EMBEDDING_DIMENSIONS` | **`1024`** |
+| Document task | `retrieval.passage` |
+| Query task | `retrieval.query` |
+| Postgres column | `vector(1024)` |
+| Key variable | `JINA_API_KEY` — server-side only |
+
+**Rules:**
+- **1024 is permanent.** It is written into the `chunks.embedding` column type.
+  Changing it means re-embedding every paper. Three things must always agree:
+  the env var, the dimensions requested from the API, and the database column.
+- **Asymmetric retrieval is required.** Documents embed with
+  `retrieval.passage`, queries with `retrieval.query`. Never use one mode for
+  both — it discards the model's main retrieval advantage.
+- **Never call the embedding API from a test.** Tests use a fake provider and
+  must run offline, free, and deterministically.
+- **Embed each chunk once.** Cache results; re-ingesting unchanged content must
+  not re-embed it. The free allocation is finite.
+- **Batch requests** — many chunks per call, never one call per chunk.
+- All embedding calls happen **server-side in the FastAPI backend only**.
+- Provider independence is maintained through
+  `src/rag/embeddings/base.py::EmbeddingProvider`. Provider-specific code must
+  never leak into the ingestion or retrieval layers.
+
+**Do not install or commit to a specific LLM provider until I approve
 it.** Present the options and trade-offs first.
 
 ---

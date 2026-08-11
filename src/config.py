@@ -64,9 +64,28 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.app_env.lower() == "production"
 
-    # NOTE: AI provider, embedding model, and database settings are deliberately
-    # NOT defined yet. Those decisions (D5, D6) are still open — see
-    # PROJECT_PLAN.md §F. They will be added in the milestone that needs them.
+    # ---------- Embedding model (LOCKED — decision D6) ----------
+    # Jina jina-embeddings-v3 @ 1024 dimensions.
+    #
+    # ⚠️ embedding_dimensions is PERMANENT. It must match the vector(1024)
+    # column in the database exactly. Changing it means re-embedding every
+    # paper. See PROJECT_PLAN.md §F decision 2.
+    embedding_provider: str = "jina"
+    embedding_model: str = "jina-embeddings-v3"
+    embedding_dimensions: int = 1024
+
+    # The API key. Empty by default so the app still starts without it —
+    # only the embedding feature fails, and with a clear message.
+    # NEVER hard-code a key here; it comes from .env or the host environment.
+    jina_api_key: str = ""
+
+    @property
+    def has_embedding_credentials(self) -> bool:
+        """Whether an embedding API key is configured."""
+        return bool(self.jina_api_key.strip())
+
+    # NOTE: the LLM provider (D5) and database settings are deliberately NOT
+    # defined yet. They are added in the milestone that needs them.
 
 
 @lru_cache
