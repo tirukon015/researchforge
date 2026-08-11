@@ -38,6 +38,12 @@ pydantic-settings==2.15.0     # loads + validates settings from env vars
 # of the two packages above; they are not pinned separately here.
 
 
+# ---------- Database (Milestone 2) ----------
+psycopg[binary]==3.3.4        # PostgreSQL driver
+sqlalchemy==2.0.51            # database toolkit / query builder
+pgvector==0.5.0               # Python support for the pgvector column type
+
+
 # ---------- Testing ----------
 pytest==9.1.1                 # test runner
 httpx2==2.10.0                # HTTP client used by FastAPI's TestClient.
@@ -56,11 +62,8 @@ ruff==0.16.2                  # linter + formatter
 # Kept out deliberately to avoid unnecessary dependencies.
 # ============================================================
 #
-# --- Milestone 2: Database ---
-# psycopg[binary]     # PostgreSQL driver
-# sqlalchemy          # database toolkit
-# supabase            # Supabase client (storage + database)
-# pgvector            # Python support for the pgvector column type
+# --- Milestone 3: Supabase Storage client ---
+# supabase            # only needed once we upload PDFs
 #
 # --- Milestone 3: File upload & PDF extraction ---
 # python-multipart    # required by FastAPI to accept file uploads
@@ -76,9 +79,11 @@ ruff==0.16.2                  # linter + formatter
 # openai
 # google-genai
 #
-# --- Milestone 2/4: Embedding model --- [UNDECIDED: D6]
-#   Must be fixed BEFORE the database schema is created, because the
-#   pgvector column size is permanent.
+# --- Milestone 4: Embedding model --- [LOCKED: D6]
+#   OpenAI text-embedding-3-small @ 1536 dims.
+#   The SDK is added in Milestone 4, when the first embedding is
+#   actually generated. Not installed before it is needed.
+# openai
 #
 # --- Later / optional ---
 # pytest-asyncio      # testing async endpoints
