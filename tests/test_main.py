@@ -55,7 +55,7 @@ class TestRootEndpoint:
 
     def test_root_describes_the_api(self) -> None:
         body = client.get("/").json()
-        assert "Research Paper Assistant" in body["message"]
+        assert "ResearchForge" in body["message"]
         assert body["health_url"] == "/health"
 
 

@@ -1,6 +1,6 @@
 # Documentation
 
-Supporting documentation for the AI Research Paper Assistant.
+Supporting documentation for ResearchForge — the AI Research Paper Assistant.
 
 ## Planned contents
 

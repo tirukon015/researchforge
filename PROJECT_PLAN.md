@@ -1,5 +1,5 @@
 # PROJECT_PLAN.md
-### AI Research Paper Assistant (Gen AI)
+### ResearchForge — AI Research Paper Assistant (Gen AI)
 **BIT4543 Artificial Intelligence — Project #17**
 
 | | |
@@ -228,45 +228,76 @@ swappable implementations), then start on whichever paid API you are willing to
 fund, with Gemini's free tier as the fallback for development. The abstraction
 means the choice is reversible and costs one afternoon to switch.
 
-#### ✅ **[DECIDED 2026-08-11] 2 — Embedding model → `gemini-embedding-2` @ 768 dims**
+#### 🔒 **[LOCKED 2026-08-11] 2 — Embedding model → OpenAI `text-embedding-3-small` @ 1536 dims**
 
 | Setting | Value |
 |---|---|
-| Provider | Google Gemini API (via Google AI Studio) |
-| Model | `gemini-embedding-2` |
-| **Dimensions** | **768** — set explicitly via `output_dimensionality` |
-| Max input | 8,192 tokens per request |
-| Cost | **Free tier — text embeddings free of charge** |
-| Postgres column | `vector(768)` |
+| Provider | OpenAI |
+| Model | `text-embedding-3-small` |
+| **Dimensions** | **1536** (the model's native size) |
+| Max input | 8,191 tokens per request |
+| Postgres column | `vector(1536)` |
+| Index | HNSW, `vector_cosine_ops` |
 
-**Why this model.** The owner's constraint was zero spend. Among free options
-this was chosen over `gemini-embedding-001` for two concrete reasons:
+**Why this model.** Selected as the production embedding model, optimising for
+reliability, documentation quality, and maintainability over raw cost:
 
-1. **It auto-normalises truncated dimensions.** `gemini-embedding-001` requires
-   *manual* normalisation when output is reduced below 3,072. Forgetting that
-   step produces silently wrong similarity scores with **no error** — an
-   unacceptable failure mode for a beginner-maintained academic tool.
-2. **8,192-token input limit** vs 2,048 on `-001`, leaving headroom to increase
-   chunk size later without changing models.
+1. **Indexes natively in pgvector.** 1536 < the 2,000-dimension HNSW/IVFFlat
+   ceiling, so no `halfvec` workaround and no dimension truncation.
+2. **The best-documented embedding model in existence.** For a
+   beginner-maintained project this is the decisive factor — when retrieval
+   misbehaves, an answer exists.
+3. **Very high stability.** Minimal risk of an API change mid-semester.
+4. **Portable.** API-based, so it behaves identically on macOS, Windows, and
+   the deployed backend.
+5. **Matryoshka support** — the vector can be truncated to 512 dims later,
+   cutting storage 3× with only a small accuracy loss, *without changing
+   models*. A genuine escape hatch if the free tier gets tight.
 
-**⚠️ Why 768 and not the default.** Both Gemini embedding models **default to
-3,072 dimensions**, which is *above pgvector's 2,000-dimension index limit*
-(see §I). Taking the default would produce a table that cannot be indexed with
-HNSW or IVFFlat, forcing a full table scan on every search. The
-`output_dimensionality` parameter **must be set to 768 explicitly on every
-call.** 768 also halves storage versus 1536, which matters on Supabase's
-500 MB free tier.
+**Rejected: `text-embedding-3-large` (3072 dims).** Above pgvector's 2,000-dim
+index limit — the table could not be indexed with HNSW, forcing a full scan on
+every query. Would also cost ~6× more and roughly double storage, for a quality
+difference this project cannot measure. Architectural simplicity wins.
 
-**Known risks accepted:** free-tier rate limits are account-specific and not
-published (visible only in AI Studio) — ingestion must implement batching and
-retry-with-backoff, and measure actual throughput in Milestone 4. Google has
-historically renamed and deprecated these APIs, so the provider abstraction
-below is not optional.
+**Rejected: Gemini embeddings.** Free, but both Gemini models default to 3,072
+dims (unindexable) and `gemini-embedding-001` requires *manual* normalisation
+when truncated — omitting it yields silently wrong similarity scores with no
+error. Retained as the documented fallback if a serious blocker appears.
+
+### 💰 Cost control (mandatory)
+
+Embeddings are cheap but **not free**. Expected cost at ~$0.02 / 1M tokens:
+
+| Workload | Tokens | Cost |
+|---|---|---|
+| Embedding 100 papers (~10k words each) | ~1.3 M | **~$0.03** |
+| One user question | ~20 | ~$0.0000004 |
+| Realistic full project total | — | **well under $1** |
+
+A minimum prepaid balance (typically $5) is required to activate the API; that
+credit is expected to outlast the project. Controls that are **not optional**:
+
+- **Cache aggressively.** A chunk is embedded **once**, ever. Re-ingesting the
+  same paper must not re-embed it.
+- **Batch requests.** Send many chunks per API call, never one call per chunk.
+- **Never embed in a test.** All unit tests mock the provider — tests must be
+  free, fast, and deterministic.
+- **Set a hard spending limit** in the OpenAI dashboard as a backstop.
+- **Log token usage** per operation so cost is measurable, not guessed.
+
+### 🔑 Key handling (mandatory)
+
+- `OPENAI_API_KEY` lives **only** in `.env` (git-ignored) and in the host's
+  server-side environment variables.
+- **Never** in source code, never committed, never logged, and never behind a
+  `NEXT_PUBLIC_` prefix — the browser must never see it.
+- All embedding calls are made **server-side from the FastAPI backend only**.
 
 **Reversibility.** Mitigated by design, not by luck:
 - `chunks.embedding_model` and `chunks.embedding_dimensions` columns record
   what produced every vector.
-- An `EmbeddingProvider` interface keeps the model a config value.
+- An `EmbeddingProvider` interface (`src/rag/embeddings/`) keeps the provider a
+  configuration value, not a code dependency.
 - Any future migration adds a new column and backfills; it never overwrites.
 
 #### **[DECISION NEEDED] 3 — PDF text extraction library**
@@ -619,7 +650,7 @@ comes free with Vercel pull requests.
 ## P. GitHub Strategy
 
 - **GitHub is the source of truth.** Work is pushed, not left on one laptop.
-- Repository name: **`ai-research-paper-assistant`** ✅ **[DECIDED 2026-08-11]**
+- Repository name: **`researchforge`** ✅ **[DECIDED 2026-08-11]**
   — lowercase and hyphenated. The local folder was renamed to match, so the
   local path, the repo name, and the deployment name are all identical and
   portable across Mac / Windows / Linux. Resolves §R risk R2.
@@ -673,7 +704,7 @@ Each milestone ends with a **test**, a **commit**, and a **stop for approval**.
 | ID | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
 | **R1** | ~~Python 3.9.6 is too old for modern AI libraries~~ | — | — | ✅ **RESOLVED 2026-08-11** — Python 3.12.10 (arm64) installed and verified; the project venv runs on 3.12.10, not the system 3.9.6. |
-| **R2** | ~~Project folder name contains spaces and parentheses~~ | — | — | ✅ **RESOLVED 2026-08-11** — renamed to `ai-research-paper-assistant` before any venv or tooling was created, so no absolute paths had to be repaired. |
+| **R2** | ~~Project folder name contains spaces and parentheses~~ | — | — | ✅ **RESOLVED 2026-08-11** — renamed to `researchforge` before any venv or tooling was created, so no absolute paths had to be repaired. |
 | **R3** | AI API costs spiral | Medium | Medium | Cheap models in development, cache generations in the DB, cap tokens, set provider spending limits, batch embeddings |
 | **R4** | LLM hallucinates in academic output | Medium | **Critical** | RAG grounding, mandatory citations, refusal path, evaluation in §M |
 | **R5** | Messy PDFs extract badly (two-column layouts, scans, formulas) | High | Medium | Benchmark extraction libraries on real papers; detect near-empty extraction and fail loudly; document scanned-PDF/OCR as a known limitation |

@@ -1,1 +1,1 @@
-"""Test suite for the AI Research Paper Assistant backend."""
+"""Test suite for the ResearchForge backend."""

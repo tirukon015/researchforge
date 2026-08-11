@@ -11,7 +11,7 @@
 
 | Field | Value |
 |---|---|
-| **Project** | AI Research Paper Assistant (Gen AI) |
+| **Project** | **ResearchForge** — AI Research Paper Assistant (Gen AI) |
 | **Course** | BIT4543 Artificial Intelligence |
 | **Project number** | #17 |
 | **Type** | University capstone + public portfolio project |
@@ -99,6 +99,50 @@ This is graded university work. Fabrication is a serious offence.
 
 ---
 
+## 6a. 🚨 RPOMS ISOLATION — ABSOLUTE RULE
+
+**RPOMS is a separate, critical production project. It is completely
+off-limits. This rule overrides convenience, speed, and every other
+instruction in this file.**
+
+### Never, under any circumstances:
+- Read, open, or inspect RPOMS files, credentials, or `.env`
+- Copy, reuse, or reference any RPOMS secret, key, token, or project ID
+- Use an RPOMS Supabase URL, database, storage bucket, or connection string
+- Run any migration, query, or schema change against an RPOMS database
+- Use or deploy to the RPOMS Vercel account or project
+- Modify anything in an RPOMS repository
+
+### ResearchForge must be completely independent:
+| Resource | Requirement |
+|---|---|
+| GitHub repository | `tirukon015/researchforge` — its own repo |
+| Supabase project | ResearchForge project only |
+| Supabase credentials | ResearchForge keys only |
+| Vercel project | ResearchForge project only |
+| Environment variables | ResearchForge `.env` only |
+| Database / storage | ResearchForge only |
+| API keys | ResearchForge only |
+
+### Mandatory pre-flight check
+**Before ANY database or deployment operation**, print the target and get the
+owner's confirmation:
+
+- Before a migration → print the `SUPABASE_URL` **host** and confirm it is the
+  ResearchForge project.
+- Before a deploy → print the target Vercel project name and confirm.
+- Before adding a git remote or pushing → print the remote URL and confirm it
+  is `tirukon015/researchforge`.
+
+**If the target cannot be verified, STOP and ask. Never guess.**
+
+### Destructive SQL is forbidden
+Migrations may contain `CREATE` and additive `ALTER` only.
+**`DROP`, `TRUNCATE`, `DELETE FROM`, and any destructive schema change require
+the owner's explicit, written, per-instance approval.**
+
+---
+
 ## 7. Portability Rules
 
 I must be able to continue this project from **Mac, Windows, or Linux**.
@@ -146,7 +190,7 @@ it.** Present the options and trade-offs first.
 
 ## 10. Repository Layout & Folder Responsibilities (APPROVED — decision D3)
 
-**Project / repository name:** `ai-research-paper-assistant`
+**Project / repository name:** `researchforge`
 (lowercase, hyphenated — no spaces, no parentheses. Portable across
 Mac / Windows / Linux and safe in shell scripts, Docker, and URLs.)
 
@@ -155,7 +199,7 @@ records the agreed responsibility of each folder. **This mapping is approved
 and must not be changed without the owner's permission.**
 
 ```
-ai-research-paper-assistant/
+researchforge/
 ├── data/         ├── notebooks/       ├── src/       ├── app/
 ├── models/       ├── docs/            ├── results/   ├── tests/
 ├── README.md     ├── PROJECT_PLAN.md  ├── CLAUDE.md

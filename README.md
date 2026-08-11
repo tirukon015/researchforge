@@ -1,4 +1,6 @@
-# 📚 AI Research Paper Assistant
+# 🔨 ResearchForge
+
+### AI Research Paper Assistant (Gen AI)
 
 > An AI-powered research assistant that reads your research papers, summarises
 > them, finds the gaps nobody has studied yet, and drafts a cited literature
@@ -131,8 +133,8 @@ Full reasoning behind every choice is in [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §
 ### 1. Clone
 
 ```bash
-git clone https://github.com/<your-username>/ai-research-paper-assistant.git
-cd ai-research-paper-assistant
+git clone https://github.com/tirukon015/researchforge.git
+cd researchforge
 ```
 
 ### 2. Configure environment variables

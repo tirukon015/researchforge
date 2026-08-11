@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     )
 
     # ---------- Application ----------
-    app_name: str = "AI Research Paper Assistant"
+    app_name: str = "ResearchForge"
     app_env: str = "development"
     debug: bool = True
     backend_port: int = 8000

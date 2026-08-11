@@ -59,7 +59,7 @@ settings = get_settings()
 app = FastAPI(
     title=settings.app_name,
     description=(
-        "Backend API for the AI Research Paper Assistant. "
+        "Backend API for ResearchForge, an AI Research Paper Assistant. "
         "Upload research papers, generate summaries, identify research gaps, "
         "and produce literature reviews — with citations back to the source."
     ),
@@ -91,7 +91,7 @@ app.add_middleware(
 def root() -> RootResponse:
     """Describe the API and point to the docs."""
     return RootResponse(
-        message="AI Research Paper Assistant API",
+        message="ResearchForge API — AI Research Paper Assistant",
         version=__version__,
         docs_url="/docs",
         health_url="/health",
