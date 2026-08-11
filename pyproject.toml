@@ -1,0 +1,42 @@
+# ============================================================
+# Tooling configuration for the Python backend.
+#
+# One file configures pytest (tests), ruff (linting/formatting),
+# and mypy (type checking) — instead of three separate config files.
+# ============================================================
+
+[tool.pytest.ini_options]
+# Look for tests in tests/ and treat the project root as importable,
+# so `from src.main import app` works without any path hacks.
+testpaths = ["tests"]
+pythonpath = ["."]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --strict-markers"
+
+[tool.ruff]
+# Ruff is a linter + formatter: it catches mistakes and keeps style consistent.
+target-version = "py312"
+line-length = 100
+exclude = ["venv", ".venv", "app", "notebooks", "data"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (unused imports, undefined names)
+    "I",   # isort (import ordering)
+    "B",   # flake8-bugbear (likely bugs)
+    "UP",  # pyupgrade (modern Python syntax)
+]
+# B008 is disabled because FastAPI's Depends() in defaults is the correct,
+# documented pattern — not the bug bugbear thinks it is.
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = ["venv", ".venv", "app", "notebooks"]

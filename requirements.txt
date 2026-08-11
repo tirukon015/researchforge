@@ -1,69 +1,88 @@
 # ============================================================
 # AI Research Paper Assistant — Python dependencies
 # ============================================================
-# STATUS: Phase 0. NOTHING IS INSTALLED YET.
+# Python: 3.12.10
+# Last verified install: 2026-08-11 (macOS arm64, Milestone 1)
 #
-# This file lists the planned backend dependencies. Versions
-# will be PINNED (e.g. fastapi==0.115.0) in Milestone 1, after
-# we confirm the Python version and actually install them.
+# Versions below are PINNED (==) so that this project installs
+# identically on Mac, Windows, Linux, and the deployment server.
+# Pinning is what makes the project reproducible.
 #
-# Install (Milestone 1):
-#   python3 -m venv venv
-#   source venv/bin/activate      # Windows: venv\Scripts\activate
-#   pip install -r requirements.txt
+# SETUP
+#   macOS / Linux:
+#     python3.12 -m venv venv
+#     source venv/bin/activate
+#     pip install -r requirements.txt
+#
+#   Windows (PowerShell):
+#     py -3.12 -m venv venv
+#     venv\Scripts\Activate.ps1
+#     pip install -r requirements.txt
+#
+# RUN
+#   uvicorn src.main:app --reload --port 8000
+#
+# TEST
+#   pytest
 # ============================================================
 
 
 # ---------- Web framework ----------
-fastapi                 # the API framework
-uvicorn[standard]       # the server that runs FastAPI
-python-multipart        # required for file uploads
+fastapi==0.141.1              # the API framework
+uvicorn[standard]==0.52.1     # the server that runs FastAPI
 
 
 # ---------- Configuration ----------
-pydantic                # data validation for API requests/responses
-pydantic-settings       # loads and validates settings from env vars
-python-dotenv           # reads the .env file during local development
-
-
-# ---------- Database ----------
-psycopg[binary]         # PostgreSQL driver
-sqlalchemy              # database toolkit / query builder
-supabase                # Supabase client (storage + database helpers)
-pgvector                # Python support for the pgvector column type
+pydantic-settings==2.15.0     # loads + validates settings from env vars
+# pydantic and python-dotenv are installed automatically as dependencies
+# of the two packages above; they are not pinned separately here.
 
 
 # ---------- Testing ----------
-pytest
-pytest-asyncio          # for testing async FastAPI endpoints
-httpx                   # test client for calling the API in tests
+pytest==9.1.1                 # test runner
+httpx2==2.10.0                # HTTP client used by FastAPI's TestClient.
+                              # NOTE: httpx2, not httpx. Starlette 1.6 imports
+                              # httpx2 and warns if only the older httpx is
+                              # present. Same author (Tom Christie), same
+                              # BSD-3 licence, maintained at pydantic/httpx2.
 
 
 # ---------- Code quality ----------
-ruff                    # linter + formatter (fast, replaces several tools)
-mypy                    # static type checking
+ruff==0.16.2                  # linter + formatter
 
 
 # ============================================================
-# NOT YET ADDED — awaiting owner approval (PROJECT_PLAN.md §F)
+# NOT INSTALLED YET — added in the milestone that needs them.
+# Kept out deliberately to avoid unnecessary dependencies.
 # ============================================================
 #
-# --- PDF text extraction --- [DECISION NEEDED, Milestone 3]
-#   Will be chosen by benchmarking on REAL papers:
-# pypdf                 # simple, pure Python, permissive licence
-# pdfplumber            # better layout and table handling
-# pymupdf               # fastest and highest quality, but AGPL licence
+# --- Milestone 2: Database ---
+# psycopg[binary]     # PostgreSQL driver
+# sqlalchemy          # database toolkit
+# supabase            # Supabase client (storage + database)
+# pgvector            # Python support for the pgvector column type
 #
-# --- LLM provider --- [DECISION NEEDED, before Milestone 5]
-#   Exactly ONE of these will be added:
+# --- Milestone 3: File upload & PDF extraction ---
+# python-multipart    # required by FastAPI to accept file uploads
+#   PDF library still [UNDECIDED] — to be chosen by benchmarking
+#   on REAL papers (see PROJECT_PLAN.md §F decision 3):
+# pypdf               # simple, pure Python, permissive licence
+# pdfplumber          # better layout and table handling
+# pymupdf             # fastest and best quality, but AGPL licence
+#
+# --- Milestone 5: LLM provider --- [UNDECIDED: D5]
+#   Exactly ONE of these will be added once the owner decides:
 # anthropic
 # openai
 # google-genai
 #
-# --- Embedding model --- [DECISION NEEDED, before Milestone 2]
-#   Dimension must be fixed BEFORE the database schema is created.
+# --- Milestone 2/4: Embedding model --- [UNDECIDED: D6]
+#   Must be fixed BEFORE the database schema is created, because the
+#   pgvector column size is permanent.
 #
-# --- Optional, later milestones ---
-# tiktoken              # token counting / cost estimation
-# tenacity              # automatic retries on transient API failures
-# slowapi               # rate limiting
+# --- Later / optional ---
+# pytest-asyncio      # testing async endpoints
+# mypy                # static type checking
+# tiktoken            # token counting / cost estimation
+# tenacity            # automatic retries on transient API failures
+# slowapi             # rate limiting
