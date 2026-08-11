@@ -1,0 +1,69 @@
+# ============================================================
+# AI Research Paper Assistant — Python dependencies
+# ============================================================
+# STATUS: Phase 0. NOTHING IS INSTALLED YET.
+#
+# This file lists the planned backend dependencies. Versions
+# will be PINNED (e.g. fastapi==0.115.0) in Milestone 1, after
+# we confirm the Python version and actually install them.
+#
+# Install (Milestone 1):
+#   python3 -m venv venv
+#   source venv/bin/activate      # Windows: venv\Scripts\activate
+#   pip install -r requirements.txt
+# ============================================================
+
+
+# ---------- Web framework ----------
+fastapi                 # the API framework
+uvicorn[standard]       # the server that runs FastAPI
+python-multipart        # required for file uploads
+
+
+# ---------- Configuration ----------
+pydantic                # data validation for API requests/responses
+pydantic-settings       # loads and validates settings from env vars
+python-dotenv           # reads the .env file during local development
+
+
+# ---------- Database ----------
+psycopg[binary]         # PostgreSQL driver
+sqlalchemy              # database toolkit / query builder
+supabase                # Supabase client (storage + database helpers)
+pgvector                # Python support for the pgvector column type
+
+
+# ---------- Testing ----------
+pytest
+pytest-asyncio          # for testing async FastAPI endpoints
+httpx                   # test client for calling the API in tests
+
+
+# ---------- Code quality ----------
+ruff                    # linter + formatter (fast, replaces several tools)
+mypy                    # static type checking
+
+
+# ============================================================
+# NOT YET ADDED — awaiting owner approval (PROJECT_PLAN.md §F)
+# ============================================================
+#
+# --- PDF text extraction --- [DECISION NEEDED, Milestone 3]
+#   Will be chosen by benchmarking on REAL papers:
+# pypdf                 # simple, pure Python, permissive licence
+# pdfplumber            # better layout and table handling
+# pymupdf               # fastest and highest quality, but AGPL licence
+#
+# --- LLM provider --- [DECISION NEEDED, before Milestone 5]
+#   Exactly ONE of these will be added:
+# anthropic
+# openai
+# google-genai
+#
+# --- Embedding model --- [DECISION NEEDED, before Milestone 2]
+#   Dimension must be fixed BEFORE the database schema is created.
+#
+# --- Optional, later milestones ---
+# tiktoken              # token counting / cost estimation
+# tenacity              # automatic retries on transient API failures
+# slowapi               # rate limiting
