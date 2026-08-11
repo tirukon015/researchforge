@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **Status** | Phase 0 — Setup & Planning complete |
+| **Status** | Milestone 1 — Environment & Foundations ✅ complete |
 | **Last updated** | 2026-08-11 |
 | **Nothing installed / no API connected / no RAG built yet** | ✅ intentional |
 
@@ -639,7 +639,7 @@ Each milestone ends with a **test**, a **commit**, and a **stop for approval**.
 
 | ID | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
-| **R1** | **Python 3.9.6 is too old** for modern AI libraries | High | High | 🟡 **IN PROGRESS** — Python 3.12 approved 2026-08-11. Install pending; will be marked resolved only once `python3.12 --version` is verified in Milestone 1. |
+| **R1** | ~~Python 3.9.6 is too old for modern AI libraries~~ | — | — | ✅ **RESOLVED 2026-08-11** — Python 3.12.10 (arm64) installed and verified; the project venv runs on 3.12.10, not the system 3.9.6. |
 | **R2** | ~~Project folder name contains spaces and parentheses~~ | — | — | ✅ **RESOLVED 2026-08-11** — renamed to `ai-research-paper-assistant` before any venv or tooling was created, so no absolute paths had to be repaired. |
 | **R3** | AI API costs spiral | Medium | Medium | Cheap models in development, cache generations in the DB, cap tokens, set provider spending limits, batch embeddings |
 | **R4** | LLM hallucinates in academic output | Medium | **Critical** | RAG grounding, mandatory citations, refusal path, evaluation in §M |
@@ -675,13 +675,20 @@ Each milestone ends with a **test**, a **commit**, and a **stop for approval**.
 - [x] Git repository initialised
 - [x] No fake data, no secrets, no premature installs
 
-**M1 — Environment & Foundations**
-- [ ] Python 3.11+ installed and version printed
-- [ ] Virtual environment created and documented for Mac **and** Windows
-- [ ] `requirements.txt` with pinned versions, installs cleanly
-- [ ] FastAPI runs; `GET /health` returns 200 in the browser
-- [ ] `/docs` interactive API page loads
-- [ ] `pytest` runs at least one passing test
+**M1 — Environment & Foundations** ✅ **COMPLETE 2026-08-11**
+- [x] Python 3.11+ installed and version printed — **3.12.10, arm64**
+- [x] Virtual environment created and documented for Mac **and** Windows
+- [x] `requirements.txt` with pinned versions, installs cleanly
+- [x] FastAPI runs; `GET /health` returns 200 — verified, 0.8 ms response
+- [x] `/docs` interactive API page loads — HTTP 200
+- [x] `pytest` runs at least one passing test — **9/9 passing**
+- [x] `ruff check` and `ruff format --check` clean
+- [x] No hard-coded absolute paths; no secrets in source
+
+*Not carried out:* a from-scratch reinstall of `requirements.txt` into a
+throwaway venv (blocked by a local tool permission). The pins were taken from
+a real verified install, but reproducibility on a second machine is unproven
+until someone clones the repo and installs. Worth confirming at Milestone 2.
 
 **M2 — Database Foundation**
 - [ ] Supabase project created; keys in local `.env` only

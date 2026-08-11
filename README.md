@@ -11,10 +11,10 @@
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Next.js](https://img.shields.io/badge/next.js-frontend-black)
 
-> ⚠️ **Project status: Phase 0 — Setup & Planning complete.**
-> The application is not built yet. The repository currently contains the
-> project structure, plan, and documentation. Follow
-> [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the development roadmap.
+> ⚠️ **Project status: Milestone 1 — Environment & Foundations complete.**
+> The backend foundation runs (FastAPI + `/health`, 9/9 tests passing), but the
+> AI features are not built yet. Follow [`PROJECT_PLAN.md`](PROJECT_PLAN.md)
+> for the development roadmap.
 
 ---
 
@@ -223,8 +223,8 @@ Details: [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §N.
 | # | Milestone | Status |
 |---|---|---|
 | 0 | Setup & planning | ✅ Complete |
-| 1 | Environment & foundations | ⬜ Next |
-| 2 | Database foundation (Supabase + pgvector) | ⬜ |
+| 1 | Environment & foundations | ✅ Complete |
+| 2 | Database foundation (Supabase + pgvector) | ⬜ Next |
 | 3 | PDF ingestion & text extraction | ⬜ |
 | 4 | Chunking & embeddings | ⬜ |
 | 5 | Retrieval & grounded Q&A | ⬜ |

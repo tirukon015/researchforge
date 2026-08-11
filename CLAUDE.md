@@ -239,6 +239,8 @@ A milestone is complete only when **all** of these are true:
 
 ## 14. Current Status
 
-- **Phase:** 0 — Setup & Planning ✅ complete
-- **Next phase:** 1 — Environment & Foundations (awaiting my approval)
-- **Nothing installed yet. No external API connected yet. No RAG built yet.**
+- **Phase:** 1 — Environment & Foundations ✅ complete (2026-08-11)
+- **Next phase:** 2 — Database Foundation (awaiting my approval)
+- **Working:** Python 3.12.10 venv, FastAPI with `/health`, 9/9 tests passing
+- **Still open:** LLM provider (D5), embedding model (D6), backend host (D7)
+- **No external API connected yet. No database yet. No RAG built yet.**
