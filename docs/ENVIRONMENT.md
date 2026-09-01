@@ -56,6 +56,10 @@ Not set in production, because production runs on Gemini.
 be given a `NEXT_PUBLIC_` prefix, returned by an endpoint, or written into a
 log. Not currently set anywhere.
 
+`SUPABASE_URL` is set in Vercel Production. It is a public project URL, not a
+secret, and it is inert on its own: `has_database` requires both halves, so the
+library stays disabled until the key is added too.
+
 ### `JINA_API_KEY`
 
 | | |

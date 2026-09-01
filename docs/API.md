@@ -1,9 +1,14 @@
 # API reference
 
-Every endpoint below was read from the source. The backend currently exposes
-**three** routes and nothing else. Endpoints that appear in the project plan
-but do not exist yet are listed at the bottom under "Not implemented" so this
-file cannot be mistaken for a larger surface than really exists.
+Every endpoint below was read from the source. The backend exposes **12
+operations across 9 paths**: three for system and analysis, nine for the
+research library.
+
+The library routes are registered and complete, but they need durable storage.
+While no database is configured they answer `503` with a message saying the
+library is not connected. That is deliberate: an empty list would be a claim
+("you have no papers") that a deployment with nowhere to store papers cannot
+make.
 
 Base URL in production: `https://researchforge.rukon.dev`
 Base URL in local development: `http://localhost:8000`
@@ -55,7 +60,8 @@ an unreachable database can never make the application look down.
   "status": "ok",
   "app_name": "ResearchForge",
   "version": "0.1.0",
-  "environment": "production"
+  "environment": "production",
+  "library": false
 }
 ```
 
@@ -65,6 +71,7 @@ an unreachable database can never make the application look down.
 | `app_name` | From `APP_NAME`. |
 | `version` | The package version in `src/__init__.py`. |
 | `environment` | From `APP_ENV`, normally `development` or `production`. |
+| `library` | Whether durable storage is configured. A boolean, never the URL and never the key. |
 
 The frontend renders this as the "Backend online" indicator, including the
 version and environment. There is no error response: if the process is not
@@ -184,21 +191,88 @@ To read them, run the backend locally and open `http://localhost:8000/docs`.
 
 ---
 
+## Library routes
+
+All nine require durable storage. Without it every one returns `503`; the
+message names the situation rather than pretending the library is empty.
+
+Full request and response models are in `src/schemas/library.py`.
+
+### POST /api/papers
+
+Save a completed analysis. The analysis is sent by the client rather than
+re-run: it has already been paid for, and re-generating on save could store a
+different answer than the one the user chose to keep.
+
+Body: `title`, `filename`, `file_size_bytes`, `content_type`, plus the
+`document`, `summary`, `research_gaps`, `literature_review` and `model_used`
+from the analysis response. Unknown fields are rejected with `422`.
+
+Returns `201` and the stored `PaperDetail`.
+
+### GET /api/papers
+
+List the library.
+
+| Query | Default | Notes |
+| --- | --- | --- |
+| `search` | none | Matches title or filename, case insensitive substring. |
+| `status` | all | `ready`, `processing` or `failed`. |
+| `sort` | `newest` | `newest`, `oldest` or `title`. |
+| `limit` | 50 | 1 to 100. |
+| `offset` | 0 | |
+
+Returns `{ "papers": [...], "total": n }`. `total` counts every match before
+paging, so the interface can say "12 of 40" without under reporting.
+
+### GET /api/papers/stats
+
+Counts for the dashboard, derived from stored rows. Nothing is estimated.
+
+### GET /api/papers/{id}
+
+One paper with its most recent analysis. `404` when it is not in the library.
+
+### DELETE /api/papers/{id}
+
+Removes a paper and its analyses. `404` when absent.
+
+Returns **`409`** when a saved literature review was generated from it.
+Cascading the delete would leave that review claiming more sources than it can
+still name, which is a quieter and worse failure than refusing.
+
+### POST /api/reviews/cross
+
+Generate one literature review across several saved papers.
+
+Body: `paper_ids` (2 to 12) and an optional `title`. Fewer than two is rejected
+with `422`, because a cross paper review of one paper is that paper's own
+review, which already exists.
+
+`404` if **any** selected paper is missing. A review that silently covered four
+of five would still be reported as five.
+
+`422` if any selected paper has no stored analysis.
+
+Reviews read the stored analyses rather than re-reading the PDFs. A dozen full
+papers overrun the context window, and the analysis has already been paid for
+once. The limitation is real: such a review cannot surface something the
+original analysis missed.
+
+Returns `201` and the review, including the papers it was built from, named so
+the "based on N papers" claim can be checked.
+
+### GET /api/reviews, GET /api/reviews/{id}, DELETE /api/reviews/{id}
+
+List, fetch and delete saved reviews. `404` when absent.
+
+---
+
 ## Not implemented
 
-These endpoints are designed and their request and response models exist in
-`src/schemas/library.py`, but **no route is registered for any of them**. They
-require a database connection that is not configured. See
-[DATABASE](DATABASE.md).
-
-| Planned route | Purpose |
+| Planned | Status |
 | --- | --- |
-| `POST /api/papers` | Save a completed analysis to the library. |
-| `GET /api/papers` | List saved papers with search, filter and sort. |
-| `GET /api/papers/{id}` | One paper with its most recent analysis. |
-| `DELETE /api/papers/{id}` | Remove a paper. |
-| `POST /api/reviews/cross` | Generate a literature review across several papers. |
-| `GET /api/reviews` | List saved reviews. |
-| `GET /api/library/stats` | Real counts for the dashboard. |
-
-Calling any of these today returns `404`.
+| Authentication | No accounts. Every endpoint is public. |
+| PDF file storage | The private bucket is defined in migration 002; nothing writes to it. |
+| Retrieval over a corpus | The embedding provider builds requests but makes no network call. |
+| Rate limiting | `RATE_LIMIT_PER_MINUTE` is in `.env.example` and nothing reads it. |

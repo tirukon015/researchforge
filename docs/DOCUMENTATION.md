@@ -73,7 +73,7 @@ framework.
 
 Responsibilities:
 
-- Present the four routes and the analysis workspace.
+- Present the six routes and the analysis workspace.
 - Validate a file before uploading it, as a courtesy.
 - Call the backend, and only from `app/src/lib/api.ts`.
 - Translate failures into wording the user can act on.
@@ -115,7 +115,7 @@ Responsibilities:
   distinguishable from a network fault.
 
 The prompts live in `src/prompts/analysis.py` and are versioned, currently
-`1.1.0`. The shared system prompt carries the anti fabrication contract, the
+`1.2.0`. The shared system prompt carries the anti fabrication contract, the
 instruction that the paper is data rather than instructions, and a punctuation
 rule that keeps decorative dashes out of generated text.
 
@@ -127,9 +127,10 @@ a path.
 
 ### Database
 
-**Not connected.** The schema, the repository interface, a Supabase
-implementation and the request models all exist, but no endpoint imports them.
-See [DATABASE](DATABASE.md) for the full status.
+**Wired, but not connected.** Seven endpoints use the repository interface, and
+a Supabase implementation sits behind it. No database is configured in this
+deployment, so every library route answers 503 and says the library is not
+connected. See [DATABASE](DATABASE.md) for the full status.
 
 ### API communication
 
@@ -172,32 +173,30 @@ See [DEPLOYMENT](DEPLOYMENT.md).
 - Health monitoring through `GET /health` and a live indicator
 - Provider abstraction with Gemini and Anthropic implementations
 - Honest empty, loading and error states throughout
-- Light and dark themes following the operating system preference
-- Responsive layout with a mobile navigation drawer
+- Light, dark and system themes, light by default, with a working toggle
+- Top navigation at every width, with a compact disclosure panel on small
+  screens. There is no sidebar.
+- My Papers, paper detail, workspace and cross-paper review, all database backed
 - Custom domain serving the production application
-- 114 offline tests, lint and type checking
+- 186 offline tests, lint and type checking
 
 ### Partially implemented
 
 | Feature | What exists | What is missing |
 | --- | --- | --- |
-| My Papers | The page, the card layout, an empty state | Any stored papers |
-| Literature review | Single paper reviews | Cross paper reviews |
-| Database layer | Migrations, repository, Supabase client, schemas | A database, and any endpoint that uses them |
+| Research library | Pages, API, repository, search, filter, sort, delete | A connected database, so every route answers 503 |
+| Cross paper review | Selection, API, prompt, storage, the papers named on screen | A connected database, and Gemini quota |
+| Database layer | Migrations, repository, Supabase client, schemas, wired endpoints | A live Supabase project |
 | Embeddings | Provider interface, request construction, tests | The network call and any retrieval |
 
 ### Not implemented
 
-- Persistent storage of any kind
-- Authentication and user accounts
-- Saved history across sessions
-- Search, filtering and sorting of a library
-- Cross paper analysis
-- Multi paper selection and a research workspace
-- File storage for uploaded PDFs
-- Rate limiting
-- A theme toggle. Themes follow the system setting and cannot be overridden in
-  the interface.
+- Authentication and user accounts. Every endpoint is public.
+- File storage for uploaded PDFs. The bucket is defined; nothing writes to it.
+- Rate limiting. `RATE_LIMIT_PER_MINUTE` appears in `.env.example` and nothing
+  reads it.
+- Bibliographic metadata extraction, so a paper is listed by filename rather
+  than by title and authors.
 
 ### Planned
 
@@ -216,5 +215,7 @@ See [DEPLOYMENT](DEPLOYMENT.md).
    work. It does not search a corpus, and the interface says so.
 5. **No rate limiting.** The analysis endpoint is public and costs money per
    call.
-6. **The database layer is untested against a real database.** It should not be
-   trusted until it has run against live Postgres.
+6. **The database layer has not run against a live database.** It is covered
+   by tests against a mock PostgREST, which is a much smaller remaining risk
+   than being unexercised, but the first real connection is still worth
+   watching.

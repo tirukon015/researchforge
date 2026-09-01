@@ -13,7 +13,8 @@ Supabase project and its credentials.
 
 | Check | Result |
 | --- | --- |
-| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` in Vercel production | Not present |
+| `SUPABASE_URL` in Vercel production | Present. A public URL, not a secret |
+| `SUPABASE_SERVICE_ROLE_KEY` in Vercel production | Not present |
 | The same variables in the local environment | Not present |
 | Supabase client library installed | No |
 | Supabase CLI and access token | No CLI on `PATH`, no access token |
@@ -26,26 +27,29 @@ Supabase project and its credentials.
 | Initial schema | `src/db/migrations/001_initial_schema.sql` | Written, never run |
 | Analysis and review schema | `src/db/migrations/002_analysis_and_reviews.sql` | Written, never run |
 | Storage independent interface | `src/db/repository.py` | Complete |
-| Supabase implementation | `src/db/supabase.py` | Complete, untested against a live database |
+| Supabase implementation | `src/db/supabase.py` | Complete. Covered by 37 tests against a mock PostgREST, not yet run against a live database |
 | Request and response models | `src/schemas/library.py` | Complete |
 | Settings and detection | `src/config.py`, `Settings.has_database` | Complete |
-| API routes using any of this | none | **Not wired** |
+| Library API routes | `src/api/papers.py`, `src/api/reviews.py` | Wired. 7 endpoints |
 
-The last row is the important one. The data layer is not imported by any
-endpoint, so connecting credentials alone will not switch the library on. See
-"Remaining work" at the end.
+The application is therefore complete on this side. Supplying a live project
+and its service role key is the only step between here and a working library:
+`Settings.has_database` starts returning true, `get_repository` builds the
+Supabase implementation, and the 503s become real responses.
 
 ## Where session data actually lives
 
-Because there is no database, the frontend keeps the current analysis in React
-state (`app/src/lib/session.tsx`). This is deliberate and it is documented in
-that file:
+The analysis currently being read is held in React state
+(`app/src/lib/session.tsx`) whether or not a database exists. Saved papers come
+from the backend; this holder only carries the one in front of you, so it
+survives navigation between routes. It is deliberate and documented in that
+file:
 
 - It survives navigation between routes within one visit.
 - It does **not** survive a reload, a second tab, or a different device.
-- It is **not** written to `localStorage`. Doing so would make "My Papers" look
-  like a durable library while nothing is actually stored, and the illusion
-  would break the moment the user opened another browser.
+- It is **not** written to `localStorage`. Durable storage is the database's
+  job, and faking it in the browser would break the moment the user opened
+  another one.
 
 The UI states this rather than hiding it.
 
@@ -195,5 +199,10 @@ Credentials alone are not enough. The following is still required:
   deployment returns a clean `503` instead of failing at import time.
 - Add `Save` to the analysis workspace and replace the frontend's in-memory
   session with real fetches.
-- Add integration tests against a live database. `src/db/supabase.py` has never
-  run against real Postgres and should not be trusted until it has.
+- Confirm behaviour against a live database. `tests/test_supabase_repository.py`
+  asserts the requests this layer builds and the replies it parses, using
+  httpx's MockTransport with responses shaped as PostgREST documents them. That
+  covers request construction, header handling, error translation, rollback on
+  a failed second write, and Content-Range counting. What it cannot prove is
+  that the live PostgREST matches its own documentation, so the first real
+  connection is still worth watching.
