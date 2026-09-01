@@ -34,7 +34,6 @@ from typing import Any, TypeVar
 
 import httpx
 from google import genai
-from google.genai import errors as genai_errors
 from pydantic import BaseModel, ValidationError
 
 from src.rag.llm.base import (
@@ -80,6 +79,43 @@ _FAILED_STATUS_REASONS: dict[str, str] = {
         "needs an operator, not a different file."
     ),
 }
+
+
+def _status_code_of(exc: BaseException) -> int | None:
+    """The HTTP status an SDK exception carries, from either error hierarchy.
+
+    `status_code` is what the private interactions errors use; `code` is what
+    the public `google.genai.errors.APIError` uses. Anything else - including a
+    connection failure, which never got a response - has neither.
+    """
+    for attribute in ("status_code", "code"):
+        value = getattr(exc, attribute, None)
+        if isinstance(value, int):
+            return value
+    return None
+
+
+def _message_of(exc: BaseException) -> str:
+    message = getattr(exc, "message", None)
+    return message if isinstance(message, str) and message else str(exc)
+
+
+def _caused_by(exc: BaseException, kind: type[BaseException]) -> bool:
+    """Whether `exc`, or anything it was raised from, is a `kind`.
+
+    The SDK re-raises httpx failures as its own connection classes with
+    `raise ... from exc`, so the useful identity is on the cause, not the
+    exception that surfaces. The chain is walked with a depth cap because a
+    malformed chain must not hang the request.
+    """
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen and len(seen) < 10:
+        if isinstance(current, kind):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return False
 
 
 def thinking_level_for_effort(effort: str) -> str:
@@ -146,24 +182,48 @@ class GeminiLLMProvider(LLMProvider):
         API failure. The API layer maps `LLMCredentialsError` to a 503 and the
         rest to a 502, which is why the distinction has to survive this
         translation rather than collapsing into one message.
+
+        WHY THIS MATCHES ON A STATUS CODE, NOT AN EXCEPTION CLASS
+        ---------------------------------------------------------
+        `client.interactions` raises from `google.genai._gaos.lib.compat_errors`,
+        a PRIVATE module whose `APIError` is a different class from the public
+        `google.genai.errors.APIError` that `client.models` raises. Matching on
+        class identity therefore silently missed every interactions error - a
+        rejected key included, which turned an honest 503 into a misleading 502.
+        Importing the private class would fix the symptom and re-break on the
+        next SDK reshuffle.
+
+        Both hierarchies expose the HTTP status (`status_code` on the private
+        one, `code` on the public one) and a `message`. Reading whichever is
+        present identifies the failure by what it IS rather than by where its
+        class happens to live this release.
         """
-        if isinstance(exc, genai_errors.APIError):
-            code = getattr(exc, "code", None)
-            message = getattr(exc, "message", None) or str(exc)
-            if code in (401, 403):
+        status = _status_code_of(exc)
+        if status is not None:
+            if status in (401, 403):
                 return LLMCredentialsError(
                     "The Gemini API rejected the configured key, or it lacks "
                     "access to this model. Check GEMINI_API_KEY."
                 )
-            if code == 429:
-                return LLMError("The Gemini API is rate limiting this key. Please retry shortly.")
-            return LLMError(f"The Gemini API returned an error: {message}")
-        if isinstance(exc, httpx.TimeoutException):
+            if status == 429:
+                # Quota, not a fault. The API's own text names which limit was
+                # hit and often how long to wait, which is more use to an
+                # operator than our generic sentence, so it is kept.
+                return LLMError(
+                    "The Gemini API is rate limiting this key - the request "
+                    f"exceeded a quota. Please retry shortly. Details: {_message_of(exc)}"
+                )
+            return LLMError(f"The Gemini API returned an error: {_message_of(exc)}")
+
+        # No status code: the request never completed. The SDK wraps httpx
+        # failures in its own connection classes, so the original is looked for
+        # along the __cause__ chain as well as on the exception itself.
+        if _caused_by(exc, httpx.TimeoutException):
             return LLMError(
                 "The analysis timed out. This paper may be unusually long - "
                 "try again, or upload a shorter document."
             )
-        if isinstance(exc, httpx.RequestError):
+        if _caused_by(exc, httpx.RequestError):
             return LLMError("Could not reach the Gemini API. Check network connectivity.")
         return LLMError(f"Unexpected generation failure: {exc}")
 

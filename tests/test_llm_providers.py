@@ -14,7 +14,6 @@ other vendor cannot be sent to Gemini.
 
 import httpx
 import pytest
-from google.genai import errors as genai_errors
 from pydantic import BaseModel
 
 from src.config import Settings
@@ -235,33 +234,70 @@ class TestStatusHandling:
 # --------------------------------------------------------------------------- #
 
 
-def _api_error(code: int, message: str = "boom") -> genai_errors.APIError:
-    err = genai_errors.APIError.__new__(genai_errors.APIError)
-    err.code = code
-    err.message = message
-    err.status = str(code)
-    return err
+class _InteractionsError(Exception):
+    """Shaped like what `client.interactions` actually raises.
+
+    The real class lives in `google.genai._gaos.lib.compat_errors`, a PRIVATE
+    module, and is a DIFFERENT class from the public `google.genai.errors`
+    one that `client.models` raises. Production proved the difference matters:
+    matching on the public class missed every interactions error, so a rejected
+    key would have been reported as a generic 502 instead of a 503.
+
+    Reproducing the shape rather than importing the private class is the point -
+    the provider now identifies a failure by the status it carries, so this test
+    stays honest without depending on where the SDK keeps its classes.
+    """
+
+    def __init__(self, status_code: int, message: str = "boom") -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.message = message
+
+
+class _PublicApiError(Exception):
+    """The other hierarchy: `google.genai.errors.APIError` exposes `code`."""
+
+    def __init__(self, code: int, message: str = "boom") -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 
 class TestErrorTranslation:
-    @pytest.mark.parametrize("code", [401, 403])
-    def test_auth_failures_become_credentials_errors(self, code) -> None:
+    @pytest.mark.parametrize("error_type", [_InteractionsError, _PublicApiError])
+    @pytest.mark.parametrize("status", [401, 403])
+    def test_auth_failures_become_credentials_errors(self, error_type, status) -> None:
         """The API layer maps credentials errors to 503 and everything else to
-        502, so this distinction has to survive translation."""
-        p = _provider(raises=_api_error(code))
+        502, so this distinction has to survive translation - from EITHER of the
+        SDK's two error hierarchies."""
+        p = _provider(raises=error_type(status))
         with pytest.raises(LLMCredentialsError) as exc:
             p.generate_text(system="s", prompt="u")
         assert "GEMINI_API_KEY" in str(exc.value)
 
-    def test_rate_limit_is_reported_as_retryable(self) -> None:
-        p = _provider(raises=_api_error(429))
+    @pytest.mark.parametrize("error_type", [_InteractionsError, _PublicApiError])
+    def test_rate_limit_is_reported_as_retryable(self, error_type) -> None:
+        p = _provider(raises=error_type(429, "quota exceeded, retry in 51s"))
         with pytest.raises(LLMError) as exc:
             p.generate_text(system="s", prompt="u")
         assert not isinstance(exc.value, LLMCredentialsError)
         assert "retry" in str(exc.value).lower()
+        # The API's own text names the limit and the wait, which is more use to
+        # an operator than our generic sentence.
+        assert "quota exceeded, retry in 51s" in str(exc.value)
 
-    def test_server_error_keeps_the_api_message(self) -> None:
-        p = _provider(raises=_api_error(500, "internal explosion"))
+    def test_rate_limit_is_not_reported_as_an_unexpected_failure(self) -> None:
+        """Regression guard. This exact case reached production as
+        'Unexpected generation failure: Error code: 429', which reads like a
+        bug in ResearchForge rather than a quota an operator can act on."""
+        p = _provider(raises=_InteractionsError(429, "You exceeded your quota"))
+        with pytest.raises(LLMError) as exc:
+            p.generate_text(system="s", prompt="u")
+        assert "Unexpected generation failure" not in str(exc.value)
+
+    @pytest.mark.parametrize("error_type", [_InteractionsError, _PublicApiError])
+    def test_server_error_keeps_the_api_message(self, error_type) -> None:
+        p = _provider(raises=error_type(500, "internal explosion"))
         with pytest.raises(LLMError) as exc:
             p.generate_text(system="s", prompt="u")
         assert "internal explosion" in str(exc.value)
@@ -272,8 +308,28 @@ class TestErrorTranslation:
             p.generate_text(system="s", prompt="u")
         assert "timed out" in str(exc.value)
 
+    def test_timeout_wrapped_by_the_sdk_is_still_named_a_timeout(self) -> None:
+        """The SDK re-raises httpx failures as its own connection classes with
+        `raise ... from exc`, so the useful identity is on the cause."""
+        wrapped = RuntimeError("Request timed out.")
+        wrapped.__cause__ = httpx.ReadTimeout("too slow")
+        p = _provider(raises=wrapped)
+        with pytest.raises(LLMError) as exc:
+            p.generate_text(system="s", prompt="u")
+        assert "timed out" in str(exc.value)
+
     def test_connection_failure_is_named_as_connectivity(self) -> None:
         p = _provider(raises=httpx.ConnectError("no route"))
+        with pytest.raises(LLMError) as exc:
+            p.generate_text(system="s", prompt="u")
+        assert "reach the Gemini API" in str(exc.value)
+
+    def test_a_connection_class_with_no_status_is_not_read_as_an_api_error(self) -> None:
+        """A connection failure never got a response, so it has no status code.
+        Treating it as one would report a network fault as an API error."""
+        wrapped = RuntimeError("Connection error.")
+        wrapped.__cause__ = httpx.ConnectError("no route")
+        p = _provider(raises=wrapped)
         with pytest.raises(LLMError) as exc:
             p.generate_text(system="s", prompt="u")
         assert "reach the Gemini API" in str(exc.value)
