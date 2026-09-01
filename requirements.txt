@@ -59,10 +59,12 @@ python-multipart==0.0.32      # required by FastAPI to accept file uploads
 
 
 # ---------- LLM generation (D5 still formally open) ----------
-anthropic==1.2.0              # Only provider implemented so far. Imported ONLY
-                              # by src/rag/llm/anthropic_provider.py; the rest
-                              # of the codebase depends on the LLMProvider
-                              # interface, so a second provider is additive.
+# Two providers are implemented; LLM_PROVIDER selects one at runtime. Each SDK
+# is imported ONLY by its own src/rag/llm/<vendor>_provider.py - the rest of the
+# codebase depends on the LLMProvider interface, which is what made the second
+# provider additive rather than a rewrite.
+anthropic==1.2.0              # src/rag/llm/anthropic_provider.py
+google-genai==2.21.0          # src/rag/llm/gemini_provider.py
 
 
 # ---------- Testing ----------
@@ -92,10 +94,9 @@ ruff==0.16.2                  # linter + formatter
 # pymupdf             # fastest and best quality, but AGPL - see note above
 #
 # --- Alternative LLM providers --- [D5 still open]
-#   anthropic is installed above. Adding one of these means adding
-#   src/rag/llm/<vendor>_provider.py and setting LLM_PROVIDER.
+#   anthropic and google-genai are installed above. Adding another means
+#   adding src/rag/llm/<vendor>_provider.py and setting LLM_PROVIDER.
 # openai
-# google-genai
 #
 # --- Milestone 4: Embedding model --- [LOCKED: D6]
 #   Jina `jina-embeddings-v3` @ 1024 dims. See CLAUDE.md §9.

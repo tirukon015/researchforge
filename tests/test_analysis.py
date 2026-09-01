@@ -286,15 +286,27 @@ class TestAnalyzeEndpoint:
         finally:
             app.dependency_overrides.clear()
 
-    def test_missing_credentials_returns_503(self) -> None:
-        """No API key must be a clear 503, never a 500 stack trace."""
+    @pytest.mark.parametrize(
+        ("provider", "expected_variable"),
+        [("gemini", "GEMINI_API_KEY"), ("anthropic", "ANTHROPIC_API_KEY")],
+    )
+    def test_missing_credentials_returns_503(self, provider, expected_variable) -> None:
+        """No API key must be a clear 503, never a 500 stack trace.
+
+        Parametrised over both providers because the message has to name the
+        variable the operator actually needs to set - naming the other vendor's
+        would send them to fix the wrong thing.
+        """
         app.dependency_overrides[get_settings] = lambda: Settings(
-            _env_file=None, anthropic_api_key=""
+            _env_file=None,
+            llm_provider=provider,
+            anthropic_api_key="",
+            gemini_api_key="",
         )
         try:
             r = _upload(TestClient(app), build_text_pdf(PAPER_TEXT))
             assert r.status_code == 503
-            assert "ANTHROPIC_API_KEY" in r.json()["detail"]
+            assert expected_variable in r.json()["detail"]
         finally:
             app.dependency_overrides.clear()
 

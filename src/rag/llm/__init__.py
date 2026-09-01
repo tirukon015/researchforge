@@ -40,8 +40,21 @@ def get_llm_provider(settings: Settings) -> LLMProvider:
             effort=settings.llm_effort,
         )
 
+    if provider == "gemini":
+        from src.rag.llm.gemini_provider import DEFAULT_MODEL, GeminiLLMProvider
+
+        return GeminiLLMProvider(
+            api_key=settings.gemini_api_key,
+            # LLM_MODEL is shared across providers, so a value left over from
+            # another vendor would be sent to Gemini verbatim and rejected as
+            # an unknown model. Falling back to this provider's own default
+            # makes LLM_PROVIDER switchable on its own, which is the whole
+            # point of the abstraction.
+            model=settings.model_for_provider(provider, DEFAULT_MODEL),
+            max_output_tokens=settings.llm_max_output_tokens,
+            effort=settings.llm_effort,
+        )
+
     raise LLMError(
-        f"Unknown LLM_PROVIDER {settings.llm_provider!r}. "
-        "Supported values: 'anthropic'. Decision D5 is still open - see "
-        "CLAUDE.md section 9."
+        f"Unknown LLM_PROVIDER {settings.llm_provider!r}. Supported values: 'anthropic', 'gemini'."
     )

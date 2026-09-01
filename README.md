@@ -14,10 +14,10 @@
 ![Next.js](https://img.shields.io/badge/next.js-frontend-black)
 
 > ⚠️ **Project status: working MVP — upload a PDF and get a summary, research gaps, and a literature review.**
-> Runs locally only. **No database and no deployment yet** — analysis is stateless and nothing is saved between requests.
-> The backend foundation runs (FastAPI + `/health`, 9/9 tests passing), but the
-> AI features are not built yet. Follow [`PROJECT_PLAN.md`](PROJECT_PLAN.md)
-> for the development roadmap.
+> **Deployed:** <https://researchforge.rukon.dev> — frontend and API on one
+> Vercel project. **No database yet** — analysis is stateless and nothing is
+> saved between requests. Follow [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the
+> roadmap.
 
 ---
 
@@ -197,22 +197,28 @@ reasoning calls, one per task.
 
 ### AI configuration
 
-An **Anthropic API key is required** for analysis. Everything else — the server,
-`/health`, PDF extraction, and the whole test suite — works without one.
+An **API key for the selected provider is required** for analysis. Everything
+else — the server, `/health`, PDF extraction, and the whole test suite — works
+without one.
+
+Two providers are implemented behind `src/rag/llm/base.py::LLMProvider`.
+`LLM_PROVIDER` picks one, and only that provider's key is needed.
 
 ```bash
 # in .env  (git-ignored; never commit it)
-ANTHROPIC_API_KEY=your-key-here
+GEMINI_API_KEY=your-key-here        # when LLM_PROVIDER=gemini  (the default)
+# ANTHROPIC_API_KEY=your-key-here   # when LLM_PROVIDER=anthropic
 ```
 
-Without a key, `POST /api/analyze` returns **503** with a message naming the
-missing variable. Set `LLM_EFFORT=low` for cheaper, faster runs while testing.
+Without the right key, `POST /api/analyze` returns **503** with a message naming
+the missing variable. Set `LLM_EFFORT=low` for cheaper, faster runs while
+testing.
 
 | Setting | Default | Purpose |
 |---|---|---|
-| `LLM_PROVIDER` | `anthropic` | Selects the provider implementation |
-| `LLM_MODEL` | `claude-opus-5` | 1M-token context window |
-| `LLM_EFFORT` | `high` | `low` … `max` — how hard the model thinks |
+| `LLM_PROVIDER` | `gemini` | `gemini` or `anthropic` |
+| `LLM_MODEL` | `gemini-3.7-flash` | A name belonging to the *other* vendor is ignored in favour of the selected provider's default, so `LLM_PROVIDER` can be switched on its own. `gemini-2.5-pro` for deeper reasoning. |
+| `LLM_EFFORT` | `high` | `minimal` … `max` — how hard the model thinks. Gemini's scale stops at `high`, so `xhigh`/`max` map down to it. |
 | `LONG_PAPER_CHAR_THRESHOLD` | `400000` | Above this, chunking activates |
 
 ### API

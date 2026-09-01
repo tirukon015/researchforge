@@ -32,6 +32,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+# Which model names belong to which provider. Used to spot an LLM_MODEL left
+# over from a different vendor - see Settings.model_for_provider. Kept at module
+# level rather than on the class because a pydantic-settings model turns
+# annotated attributes into fields.
+MODEL_PREFIXES_BY_PROVIDER: dict[str, tuple[str, ...]] = {
+    "anthropic": ("claude",),
+    "gemini": ("gemini",),
+}
+
+
 class Settings(BaseSettings):
     """All application settings, validated at startup."""
 
@@ -88,10 +98,14 @@ class Settings(BaseSettings):
     # D5 is still formally OPEN. Rather than hard-wiring a vendor, the code
     # talks to `src.rag.llm.base.LLMProvider`, and `llm_provider` selects the
     # concrete implementation. Switching vendors is a new file plus this one
-    # env var - never a rewrite. Anthropic is implemented first because
-    # .env.example lists it as Option A.
-    llm_provider: str = "anthropic"
-    llm_model: str = "claude-opus-5"
+    # env var - never a rewrite. Two are implemented: "anthropic" and "gemini".
+    #
+    # Gemini is the default because it is what the deployment runs on. The
+    # defaults are kept in step: llm_model names a Gemini model, and
+    # model_for_provider ignores a name belonging to the other vendor, so
+    # changing llm_provider alone still produces a working configuration.
+    llm_provider: str = "gemini"
+    llm_model: str = "gemini-3.7-flash"
 
     # Effort controls how hard the model thinks. "high" is the sensible
     # default for analytical work; "low" is enough for smoke tests.
@@ -101,11 +115,51 @@ class Settings(BaseSettings):
     # Server-side only. Empty by default so the app still starts without it -
     # only the /api/analyze endpoint fails, and with a clear message.
     anthropic_api_key: str = ""
+    gemini_api_key: str = ""
+
+    @property
+    def llm_provider_name(self) -> str:
+        """The selected provider, normalised once so callers agree on the key."""
+        return self.llm_provider.strip().lower()
 
     @property
     def has_llm_credentials(self) -> bool:
-        """Whether a generation API key is configured."""
-        return bool(self.anthropic_api_key.strip())
+        """Whether a generation API key is configured FOR THE SELECTED provider.
+
+        Provider-aware on purpose: with two vendors wired up, an Anthropic key
+        left in the environment would otherwise report the app as ready to run
+        on Gemini, and the failure would surface as a confusing 502 mid-analysis
+        instead of an honest 503 up front.
+        """
+        return bool(self.llm_api_key.strip())
+
+    @property
+    def llm_api_key(self) -> str:
+        """The API key belonging to the selected provider ("" if none/unknown).
+
+        Never logged and never returned by an endpoint - callers pass it
+        straight to the provider constructor.
+        """
+        return {
+            "anthropic": self.anthropic_api_key,
+            "gemini": self.gemini_api_key,
+        }.get(self.llm_provider_name, "")
+
+    def model_for_provider(self, provider: str, default: str) -> str:
+        """Return `llm_model` if it belongs to `provider`, else `default`.
+
+        LLM_MODEL is deliberately one setting shared by every provider, because
+        a paper is analysed by one model at a time. The cost is that a value
+        left over from another vendor ("claude-opus-5" with LLM_PROVIDER=gemini)
+        would be sent verbatim and rejected as an unknown model. This resolves
+        that: an inherited model name gives way to the provider's own default,
+        so switching vendors really is one variable.
+        """
+        configured = self.llm_model.strip()
+        prefixes = MODEL_PREFIXES_BY_PROVIDER.get(provider, ())
+        if configured and (not prefixes or configured.lower().startswith(prefixes)):
+            return configured
+        return default
 
     # ---------- Upload limits ----------
     max_upload_size_mb: int = 25

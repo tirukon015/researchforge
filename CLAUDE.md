@@ -179,8 +179,8 @@ I must be able to continue this project from **Mac, Windows, or Linux**.
 | Database | Supabase PostgreSQL |
 | Vector search | pgvector |
 | Frontend hosting | Vercel (**ResearchForge project only**) |
-| Backend hosting | Cloud host (TBD — decision D7) |
-| LLM | API-based (**provider NOT yet chosen — decision D5**) |
+| Backend hosting | Vercel — same project as the frontend (decision D7) |
+| LLM | Google Gemini `gemini-3.7-flash` (Anthropic also implemented — D5) |
 | Embeddings | 🔒 **Jina `jina-embeddings-v3` @ 1024 dims — FINAL** |
 
 ### 🔒 Embedding configuration (FINAL — do not change without re-embedding)
@@ -214,6 +214,10 @@ I must be able to continue this project from **Mac, Windows, or Linux**.
 
 **Do not install or commit to a specific LLM provider until I approve
 it.** Present the options and trade-offs first.
+
+**Approved 2026-09-02:** Google Gemini is the active provider; Anthropic remains
+implemented alongside it. Both sit behind `src/rag/llm/base.py::LLMProvider`, so
+this stays a configuration choice (`LLM_PROVIDER`), not a lock-in.
 
 ---
 
@@ -312,21 +316,27 @@ A milestone is complete only when **all** of these are true:
 
 ## 14. Current Status
 
-- **Phase:** working local MVP — upload → summary + research gaps + literature
+- **Phase:** deployed MVP — upload → summary + research gaps + literature
   review, end to end.
+- **Live:** <https://researchforge.rukon.dev> (also `researchforge-ten.vercel.app`)
 - **Next phase:** 2 — Database Foundation (awaiting my approval)
 - **Working:** FastAPI with `/health` and `POST /api/analyze`; real PDF
-  extraction (pypdf); long-paper chunking; three structured Anthropic calls;
-  Next.js frontend with upload and results UI. **68/68 tests passing.**
+  extraction (pypdf); long-paper chunking; three structured LLM calls;
+  Next.js frontend with upload and results UI. **107/107 tests passing.**
 - **Verified on:** Python 3.14.7 (Windows). `requirements.txt` pins were
   authored for 3.12 and last verified on macOS 3.12.10; they install and pass
   on 3.14.7 too.
-- **Still open:** LLM provider (D5), backend host (D7)
+- **Deployment shape (D7):** ONE Vercel project, `researchforge`, running two
+  services declared in `vercel.json` — Next.js at `/`, FastAPI at `/api/*` and
+  `/health`. Because they share an origin, the frontend calls the API with a
+  RELATIVE path and `NEXT_PUBLIC_API_BASE_URL` is deliberately **unset in
+  production**. Setting it to one absolute host is what previously made the
+  custom domain a cross-origin caller and showed "Backend offline".
+- **Settled:** LLM provider (D5) — Gemini active, Anthropic retained; backend
+  host (D7) — Vercel, same project.
 - **Locked:** embedding model (D6) — Jina `jina-embeddings-v3` @ 1024 dims (see §9)
-- **D5 status:** Anthropic `claude-opus-5` is implemented behind
-  `src/rag/llm/base.py::LLMProvider`. The decision is **not** locked — adding a
-  provider is one new file plus `LLM_PROVIDER`.
 - **Not built:** no database, no persistence, no auth, no embeddings/retrieval
-  (the MVP does not need them), no deployment. Analysis is stateless.
-- **Requires an `ANTHROPIC_API_KEY`** to analyse; everything else, including the
-  whole test suite, runs without one.
+  (the MVP does not need them). Analysis is stateless.
+- **Requires a `GEMINI_API_KEY`** (or `ANTHROPIC_API_KEY` when
+  `LLM_PROVIDER=anthropic`) to analyse; everything else, including the whole
+  test suite, runs without one.

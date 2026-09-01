@@ -213,8 +213,19 @@ User asks a question
 
 ### Still to decide
 
-#### **[DECISION NEEDED] 1 — LLM provider**
-Do not install any provider SDK until this is settled.
+#### **[RESOLVED 2026-09-02] 1 — LLM provider → Google Gemini (`gemini-3.7-flash`), Anthropic retained**
+
+Both are implemented behind `src/rag/llm/base.py::LLMProvider`; `LLM_PROVIDER`
+selects one at runtime, and only the selected provider's key is required.
+
+The recommendation below was followed exactly — design provider-agnostically
+first, then choose — which is why adding the second vendor cost one new file
+(`src/rag/llm/gemini_provider.py`) plus a branch in `get_llm_provider`, with no
+change to the analysis pipeline, the API layer, or the frontend.
+
+D5 is therefore **settled in practice but not locked**: a third provider remains
+one file plus one environment variable. The original comparison is kept below as
+the record of why.
 
 | Option | Strengths | Watch out for |
 |---|---|---|
