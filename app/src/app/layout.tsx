@@ -9,11 +9,11 @@ export const metadata: Metadata = {
   // The template gives every route its own title without repeating the brand
   // by hand on each page.
   title: {
-    default: "ResearchForge — AI Research Assistant",
+    default: "ResearchForge: AI Research Assistant",
     template: "%s · ResearchForge",
   },
   description:
-    "AI Research Assistant — upload papers, generate summaries, " +
+    "AI Research Assistant. Upload papers, generate summaries, " +
     "identify research gaps, and produce literature reviews.",
   applicationName: "ResearchForge",
 };

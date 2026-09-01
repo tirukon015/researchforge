@@ -2,11 +2,11 @@
 # Project metadata + tooling configuration for the Python backend.
 #
 # One file configures pytest (tests), ruff (linting/formatting),
-# and mypy (type checking) — instead of three separate config files.
+# and mypy (type checking), instead of three separate config files.
 # ============================================================
 
 # ------------------------------------------------------------
-# [project] — required by the deployment build
+# [project]: required by the deployment build
 # ------------------------------------------------------------
 # Vercel's Python builder runs `uv`, which prefers pyproject.toml over
 # requirements.txt when both exist. Without a [project] table it fails with
@@ -27,7 +27,7 @@
 [project]
 name = "researchforge"
 version = "0.1.0"
-description = "ResearchForge — AI Research Paper Assistant backend."
+description = "ResearchForge: AI Research Paper Assistant backend."
 requires-python = ">=3.12"
 dependencies = [
     "fastapi==0.141.1",
@@ -70,7 +70,7 @@ select = [
     "UP",  # pyupgrade (modern Python syntax)
 ]
 # B008 is disabled because FastAPI's Depends() in defaults is the correct,
-# documented pattern — not the bug bugbear thinks it is.
+# documented pattern, not the bug bugbear thinks it is.
 ignore = ["B008"]
 
 [tool.mypy]

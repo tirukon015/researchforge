@@ -1,366 +1,231 @@
-# 🔨 ResearchForge
+<div align="center">
 
-### AI Research Paper Assistant (Gen AI)
+<img src="app/public/brand/researchforge-full.png" alt="ResearchForge. Explore, Analyze, Innovate" width="380">
 
-> An AI-powered research assistant that reads your research papers, summarises
-> them, finds the gaps nobody has studied yet, and drafts a cited literature
-> review — with every claim traceable back to the source page.
+**AI Research Assistant**
 
-**BIT4543 Artificial Intelligence — Project #17**
+[![Next.js](https://img.shields.io/badge/next.js-16-black)](https://nextjs.org)
+[![FastAPI](https://img.shields.io/badge/fastapi-backend-009688)](https://fastapi.tiangolo.com)
+[![Python](https://img.shields.io/badge/python-3.12%2B-3776ab)](https://python.org)
+[![Tests](https://img.shields.io/badge/tests-114%20passing-brightgreen)](tests/)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-![Status](https://img.shields.io/badge/status-in%20development-yellow)
-![License](https://img.shields.io/badge/license-MIT-blue)
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![Next.js](https://img.shields.io/badge/next.js-frontend-black)
+[Live application](https://researchforge.rukon.dev) ·
+[Documentation](docs/DOCUMENTATION.md) ·
+[API](docs/API.md) ·
+[Setup](docs/SETUP.md)
 
-> ⚠️ **Project status: working MVP — upload a PDF and get a summary, research gaps, and a literature review.**
-> **Deployed:** <https://researchforge.rukon.dev> — frontend and API on one
-> Vercel project. **No database yet** — analysis is stateless and nothing is
-> saved between requests. Follow [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the
-> roadmap.
+</div>
 
 ---
 
-## The problem
+> **Status: working MVP, deployed.** Upload a paper and get a summary, research
+> gaps and a literature review. **Nothing is saved yet.** Analysis is stateless,
+> and results are lost when the tab is reloaded. See
+> [feature status](docs/DOCUMENTATION.md#feature-status).
 
-Writing a literature review means reading dozens of papers, extracting each
-one's contribution, spotting what has *not* been studied, and synthesising it
-all into coherent prose. It takes weeks, and it is easy to miss things.
+## What it does
 
-## The solution
+ResearchForge reads an academic PDF and produces three things:
 
-Upload your papers. The assistant gives you:
+1. **A structured summary.** Research problem, methodology, key findings,
+   conclusion.
+2. **A research gap analysis.** What the paper leaves open, why it matters, and
+   the evidence in the paper that supports calling it a gap.
+3. **A literature review.** The prior work the paper itself discusses, organised
+   into themes, comparisons and future directions.
 
-| Feature | What it does |
-|---|---|
-| 📄 **Upload** | Drop in PDFs — they are parsed, chunked, and indexed for search |
-| 📝 **Summarise** | Structured summaries: objective, method, data, findings, limitations |
-| 🔍 **Find research gaps** | Cross-paper analysis of stated limitations and future work |
-| 📖 **Literature review** | A themed, cited synthesis across your whole collection |
-| 💬 **Ask questions** | Chat with your library — grounded answers with page-level citations |
+## The principle that shapes everything
 
-### Why it can be trusted
+**Every claim must be grounded in the uploaded paper.**
 
-The system is built on **RAG (Retrieval-Augmented Generation)**. Before the AI
-writes anything, the system searches *your actual uploaded papers* for the
-relevant passages and instructs the model to answer **only** from that text,
-with citations.
+Where a paper does not support a section, ResearchForge says so instead of
+writing something plausible. A position paper with no methodology produces a
+summary that names methodology as unsupported, not an invented method. A gap is
+shown with the evidence it rests on, because that evidence is the only thing
+separating an identified gap from an invented one.
 
-If the papers don't contain the answer, the assistant says
-**"insufficient evidence"** instead of inventing one. That refusal is a feature,
-not a limitation — it is what makes the output usable for academic work.
+This is enforced in three places: the system prompt, the response schema's
+`insufficient_evidence` fields, and an interface that prints them.
 
----
+## Core features
 
-## 🏗️ Architecture
+| | |
+| --- | --- |
+| Upload | Drag and drop or file picker. PDF only, 25 MB limit, validated twice. |
+| Extraction | pypdf. Scanned and encrypted files are rejected rather than guessed at. |
+| Long papers | Papers over 400,000 characters are chunked automatically. Shorter ones are analysed whole, which preserves cross section context. |
+| Analysis | Three separate schema constrained model calls, each validated on return. |
+| Workspace | Tabbed results with copy actions and honest empty states. |
+| Health | A live indicator reading the real `/health` endpoint. |
+| Themes | Light and dark, following the operating system preference. |
+| Responsive | Works from mobile to desktop. |
+
+## Technology
+
+| Layer | Choice |
+| --- | --- |
+| Frontend | Next.js 16 App Router, React 19, TypeScript strict, plain CSS |
+| Backend | Python 3.12 or newer, FastAPI, Pydantic |
+| PDF | pypdf. Pure Python, BSD licensed, installs identically everywhere. |
+| AI | Google Gemini `gemini-3.7-flash` by default. Anthropic also implemented. |
+| Hosting | One Vercel project running both services behind one origin |
+| Database | Supabase Postgres with pgvector. **Designed, not connected.** |
+
+## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  FRONTEND — Next.js · TypeScript · React · Tailwind          │
-│  Upload · Library · Summaries · Gaps · Review · Chat         │
-│  Hosted on Vercel                                            │
-└───────────────────────────┬──────────────────────────────────┘
-                            │  HTTPS / JSON
-                            ▼
-┌──────────────────────────────────────────────────────────────┐
-│  BACKEND — Python · FastAPI                                  │
-│  ingest → extract → chunk → embed                            │
-│  retrieve → prompt → generate → map citations                │
-└──────┬──────────────────────────────┬────────────────────────┘
-       ▼                              ▼
-┌────────────────────┐      ┌─────────────────────────────────┐
-│ Supabase Postgres  │      │ LLM + Embedding APIs            │
-│ + pgvector         │      │ (provider not yet selected)     │
-│ + File Storage     │      │                                 │
-└────────────────────┘      └─────────────────────────────────┘
+                    Browser
+                       |
+                       v
+        https://researchforge.rukon.dev
+                       |
+              Vercel routing (vercel.json)
+                       |
+        +--------------+--------------+
+        |                             |
+        v                             v
+   /  and the rest             /health and /api/*
+   Next.js service              FastAPI service
+                                       |
+                          +------------+------------+
+                          |            |            |
+                          v            v            v
+                    PDF extraction  Prompts   LLM provider
+                                                     |
+                                                     v
+                                             Google Gemini API
 ```
 
-Full reasoning behind every choice is in [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §E.
+Both services share one origin, so the frontend calls the API with a relative
+path. That is what makes the custom domain, the `vercel.app` domain and every
+preview URL work from the same build. Details in
+[ARCHITECTURE](docs/ARCHITECTURE.md).
 
----
+## How it works
 
-## 🛠️ Tech Stack
+1. The user selects a PDF. The browser checks type, emptiness and size.
+2. The file is posted to `/api/analyze`.
+3. The backend checks the real byte count and verifies the PDF signature.
+4. Text is extracted. A file with no text layer is rejected with `422`.
+5. Long papers are chunked and digested; ordinary papers go through whole.
+6. Three model calls run in sequence: summary, gaps, literature review.
+7. Each reply is validated. A truncated or malformed answer is refused, never
+   partially rendered.
+8. One JSON response is returned and the workspace renders it.
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | Next.js (App Router), TypeScript, React, Tailwind CSS |
-| **Backend** | Python 3.11+, FastAPI |
-| **Database** | Supabase PostgreSQL |
-| **Vector search** | pgvector |
-| **AI** | API-based LLM + embedding model *(selection pending)* |
-| **Testing** | pytest, Vitest |
-| **Hosting** | Vercel (frontend) + containerised cloud host (backend) |
+Expect one to three minutes. The backend function allows 300 seconds.
 
----
+## Quick start
 
-## 📁 Repository Structure
-
-```
-.
-├── data/              # Papers and derived text (contents git-ignored)
-│   ├── raw/               # Original uploaded PDFs
-│   ├── processed/         # Extracted and chunked text
-│   └── samples/           # Small, openly-licensed test papers (committed)
-├── notebooks/         # Jupyter experiments and prototyping
-├── src/               # Python backend: FastAPI API + RAG pipeline
-├── app/               # Next.js frontend application
-├── models/            # Model configuration (weights git-ignored)
-├── docs/              # Architecture notes, diagrams, report material
-├── results/           # Real evaluation outputs only
-├── tests/             # Automated tests
-├── CLAUDE.md          # Permanent project rules
-├── PROJECT_PLAN.md    # Full plan and roadmap
-├── requirements.txt   # Python dependencies
-├── .env.example       # Environment variable template (no real secrets)
-└── LICENSE
-```
-
----
-
-## 🚀 Getting Started
-
-> These steps become fully functional at **Milestone 1**. They are documented
-> now so setup is reproducible on any operating system.
-
-### Prerequisites
-
-| Tool | Minimum version | Check with |
-|---|---|---|
-| Git | 2.30+ | `git --version` |
-| Python | **3.11+** | `python3 --version` |
-| Node.js | 18+ | `node --version` |
-| npm | 9+ | `npm --version` |
-
-### 1. Clone
+Requires Python 3.12 or newer, Node 20 or newer, and a Gemini API key.
 
 ```bash
 git clone https://github.com/tirukon015/researchforge.git
 cd researchforge
-```
 
-### 2. Configure environment variables
-
-```bash
-cp .env.example .env      # macOS / Linux
-copy .env.example .env    # Windows (Command Prompt)
-```
-
-Then open `.env` and fill in your own values.
-**`.env` is git-ignored and must never be committed.**
-
-### 3. Backend setup
-
-**macOS / Linux**
-```bash
-python3 -m venv venv
-source venv/bin/activate
+# Backend
+python3.12 -m venv venv
+source venv/bin/activate            # Windows: venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+cp .env.example .env                # then set GEMINI_API_KEY
 uvicorn src.main:app --reload --port 8000
-```
 
-**Windows (PowerShell)**
-```powershell
-python -m venv venv
-venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn src.main:app --reload --port 8000
-```
-
-API docs will be available at <http://localhost:8000/docs>.
-
-### 4. Frontend setup
-
-```bash
+# Frontend, in a second terminal
 cd app
 npm install
 npm run dev
 ```
 
-App will be available at <http://localhost:3000>.
+Open `http://localhost:3000`. The indicator at the top right should read
+"Backend online". Full instructions in [SETUP](docs/SETUP.md).
 
-The frontend reads `NEXT_PUBLIC_API_BASE_URL` (see `app/.env.example`).
-It defaults to `http://localhost:8000`, so no configuration is needed
-for local development.
+## Environment
 
----
+Minimum for local analysis:
 
-## 🔬 Using ResearchForge
+```
+APP_ENV=development
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+```
 
-1. Start the backend (step 3) and the frontend (step 4).
-2. Open <http://localhost:3000>. The header shows whether the backend is reachable.
-3. Select a PDF and press **Analyse paper**.
-4. Read the results under the **Summary**, **Research Gaps**, and
-   **Literature Review** tabs.
+Every variable is documented in [ENVIRONMENT](docs/ENVIRONMENT.md). Secrets are
+server side only and never reach the browser.
 
-Analysis typically takes one to three minutes: the backend makes three separate
-reasoning calls, one per task.
-
-### AI configuration
-
-An **API key for the selected provider is required** for analysis. Everything
-else — the server, `/health`, PDF extraction, and the whole test suite — works
-without one.
-
-Two providers are implemented behind `src/rag/llm/base.py::LLMProvider`.
-`LLM_PROVIDER` picks one, and only that provider's key is needed.
+## Testing
 
 ```bash
-# in .env  (git-ignored; never commit it)
-GEMINI_API_KEY=your-key-here        # when LLM_PROVIDER=gemini  (the default)
-# ANTHROPIC_API_KEY=your-key-here   # when LLM_PROVIDER=anthropic
+pytest                     # 114 tests, fully offline, no API key required
+ruff check src tests       # lint
+cd app && npm run build && npm run typecheck
 ```
 
-Without the right key, `POST /api/analyze` returns **503** with a message naming
-the missing variable. Set `LLM_EFFORT=low` for cheaper, faster runs while
-testing.
+The suite never touches the network and never spends a token. Model calls are
+replaced by a fake provider through FastAPI's dependency overrides.
 
-| Setting | Default | Purpose |
-|---|---|---|
-| `LLM_PROVIDER` | `gemini` | `gemini` or `anthropic` |
-| `LLM_MODEL` | `gemini-3.7-flash` | A name belonging to the *other* vendor is ignored in favour of the selected provider's default, so `LLM_PROVIDER` can be switched on its own. `gemini-2.5-pro` for deeper reasoning. |
-| `LLM_EFFORT` | `high` | `minimal` … `max` — how hard the model thinks. Gemini's scale stops at `high`, so `xhigh`/`max` map down to it. |
-| `LONG_PAPER_CHAR_THRESHOLD` | `400000` | Above this, chunking activates |
+## Deployment
 
-### API
+One Vercel project, `researchforge`, serving `researchforge.rukon.dev`.
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/health` | Liveness check used by hosting platforms |
-| `GET` | `/` | API description |
-| `POST` | `/api/analyze` | Upload a PDF; returns summary, gaps, and review |
-
-`POST /api/analyze` takes `multipart/form-data` with one `file` field.
+**The project is not linked to GitHub.** Pushing does not build anything.
+Production is updated with:
 
 ```bash
-curl -X POST http://localhost:8000/api/analyze   -F "file=@paper.pdf;type=application/pdf"
+vercel deploy --prod
 ```
 
-| Status | Meaning |
-|---|---|
-| `200` | Analysis succeeded |
-| `413` | File exceeds the upload size limit |
-| `422` | Not a readable PDF (wrong type, empty, or a scan with no text layer) |
-| `502` | The AI service failed or returned unusable output |
-| `503` | No AI credentials configured on the server |
+See [DEPLOYMENT](docs/DEPLOYMENT.md).
 
-Interactive docs: <http://localhost:8000/docs>.
+## AI provider
 
-### How it works
+Gemini `gemini-3.7-flash` by default, chosen because a Vercel function has a
+300 second ceiling and a Flash tier model with thinking turned up completes
+three calls inside it. `LLM_MODEL` switches to `gemini-2.5-pro` for deeper
+reasoning with no code change.
 
-```
-PDF → validate + extract (pypdf) → clean → fits in context?
-        ├── yes → analyse whole            (the normal path)
-        └── no  → chunk → digest each → combine
-   → 3 independent structured LLM calls → JSON → UI
-```
+Both providers sit behind `src/rag/llm/base.py`, so switching vendors is one
+environment variable and adding one is a single new file.
 
-Scanned PDFs are **rejected**, not silently returned empty — ResearchForge does
-no OCR. Where a paper does not support a section, the output says so rather than
-inventing content.
+## Database
 
----
+**Not connected.** No Supabase project is configured and nothing is persisted.
 
-## 🧪 Testing
+What exists: two additive migrations, a storage independent repository
+interface, a Supabase implementation, and the request and response models.
+What is missing: a Supabase project, its credentials, and the API routes that
+would use them. See [DATABASE](docs/DATABASE.md).
 
-```bash
-pytest        # backend tests — fully offline, no API key, zero tokens
-```
+## Known limitations
 
-The suite replaces the LLM with a fake provider and builds real PDF bytes in
-`tests/pdf_fixtures.py`, so PDF extraction is genuinely exercised.
+1. **Nothing is saved.** Reloading the tab discards the analysis.
+2. **The free AI tier is small.** One analysis costs three provider requests, so
+   the daily allowance runs out quickly.
+3. **No OCR.** Scanned papers have no text layer and are rejected.
+4. **Single paper scope.** The literature review covers the prior work one paper
+   discusses. It does not search a corpus, and the interface says so.
+5. **No authentication and no rate limiting.** Acceptable only while the
+   application stores nothing.
 
-Frontend checks:
+## Documentation
 
-```bash
-cd app
-npx tsc --noEmit   # type check
-npm run build      # production build
-```
+| Document | Contents |
+| --- | --- |
+| [DOCUMENTATION](docs/DOCUMENTATION.md) | Full reference and feature status |
+| [ARCHITECTURE](docs/ARCHITECTURE.md) | Technical architecture and lifecycles |
+| [API](docs/API.md) | Every endpoint, request and response |
+| [DATABASE](docs/DATABASE.md) | Schema, RLS, and connection status |
+| [SETUP](docs/SETUP.md) | Local development |
+| [DEPLOYMENT](docs/DEPLOYMENT.md) | Vercel, domain, verification |
+| [ENVIRONMENT](docs/ENVIRONMENT.md) | Every environment variable |
+| [SECURITY](docs/SECURITY.md) | Secrets, CORS, uploads, database security |
+| [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | Symptom, cause, check, fix |
+| [PROJECT_STRUCTURE](docs/PROJECT_STRUCTURE.md) | Repository layout |
 
-There is no frontend unit-test runner yet.
+Project rules are in [CLAUDE.md](CLAUDE.md); milestones and decisions are in
+[PROJECT_PLAN.md](PROJECT_PLAN.md).
 
----
+## Licence
 
-## 📊 Evaluation
-
-AI systems must be measured, not assumed to work. This project evaluates:
-
-- **Retrieval quality** — Recall@K, Precision@K, MRR
-- **Groundedness** — is every claim supported by the retrieved text?
-- **Citation accuracy** — do the cited pages actually contain the claim?
-- **Hallucination rate** — claims with no supporting evidence
-- **Refusal correctness** — does it decline when the papers can't answer?
-
-> **Integrity commitment:** every number published in `results/` comes from a
-> real script run on real papers. Nothing in this repository is fabricated.
-> Evaluations that have not been run are labelled *"not yet run"*.
-
-Methodology: [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §M.
-
----
-
-## 🔐 Security
-
-- All credentials come from environment variables — never from source code
-- `.env` is git-ignored; `.env.example` contains placeholders only
-- The Supabase service-role key is backend-only and never exposed to the browser
-- Uploaded files are validated by type and size
-- Retrieved paper text is treated as untrusted **data**, never as instructions
-  (defence against prompt injection hidden inside a PDF)
-- Row Level Security on all database tables
-
-Details: [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §N.
-
----
-
-## 🗺️ Roadmap
-
-| # | Milestone | Status |
-|---|---|---|
-| 0 | Setup & planning | ✅ Complete |
-| 1 | Environment & foundations | ✅ Complete |
-| 3 | PDF ingestion & text extraction | ✅ Complete |
-| 6 | Paper summarisation | ✅ Complete |
-| 7 | Research gap identification | ✅ Complete |
-| 8 | Literature review generation | ✅ Complete (single-paper scope) |
-| 9 | Frontend foundation | ✅ Complete |
-| 10 | Frontend features | ✅ Upload + results UI |
-| 2 | Database foundation (Supabase + pgvector) | ⬜ Next |
-| 4 | Chunking & embeddings (semantic search) | ⬜ Not needed by the MVP |
-| 5 | Retrieval & grounded Q&A | ⬜ |
-| 11 | Deployment | ⬜ |
-| 12 | Evaluation & polish | ⬜ |
-
----
-
-## 🎓 University Requirements Coverage
-
-| # | Requirement | Milestone |
-|---|---|---|
-| 1 | Allow users to upload research papers | ✅ Implemented |
-| 2 | Generate summaries of research papers | ✅ Implemented |
-| 3 | Identify research gaps | ✅ Implemented |
-| 4 | Produce literature reviews | ✅ Implemented — scoped to the related work discussed *within* the uploaded paper. A cross-corpus review needs the multi-paper library (M2). |
-| 5 | Provide a Research Assistant Application | M9–M11 |
-
----
-
-## ⚠️ Known Limitations
-
-To be documented honestly as development proceeds. Expected areas:
-scanned/image-only PDFs without OCR, complex two-column layouts, mathematical
-notation, and non-English papers.
-
----
-
-## 📄 License
-
-[MIT](LICENSE)
-
----
-
-## 🙏 Acknowledgements
-
-Built as coursework for **BIT4543 Artificial Intelligence**.
-Sample papers used for testing are open-access and credited in
-`data/samples/SOURCES.md`.
+MIT. See [LICENSE](LICENSE).

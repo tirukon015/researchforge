@@ -64,7 +64,7 @@ app = FastAPI(
     description=(
         "Backend API for ResearchForge, an AI Research Paper Assistant. "
         "Upload research papers, generate summaries, identify research gaps, "
-        "and produce literature reviews — with citations back to the source."
+        "and produce literature reviews, with citations back to the source."
     ),
     version=__version__,
     # Hide the interactive docs in production; they are a development tool.
@@ -99,7 +99,7 @@ app.include_router(analyze_router)
 def root() -> RootResponse:
     """Describe the API and point to the docs."""
     return RootResponse(
-        message="ResearchForge API — AI Research Paper Assistant",
+        message="ResearchForge API: AI Research Paper Assistant",
         version=__version__,
         docs_url="/docs",
         health_url="/health",

@@ -117,7 +117,7 @@ export function SummarySection({ summary }: { summary: Summary }) {
       <div className="btnrow" style={{ justifyContent: "flex-end", marginBottom: ".6rem" }}>
         <CopyButton text={full} label="Copy summary" />
       </div>
-      <Field title="Overview — research problem and background" value={summary.research_problem} />
+      <Field title="Overview: research problem and background" value={summary.research_problem} />
       <FindingsBlock items={summary.key_findings} />
       <Field title="Methodology" value={summary.methodology} />
       <Field title="Conclusion" value={summary.conclusion} />

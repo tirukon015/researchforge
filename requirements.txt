@@ -1,5 +1,5 @@
 # ============================================================
-# AI Research Paper Assistant — Python dependencies
+# AI Research Paper Assistant: Python dependencies
 # ============================================================
 # Python: 3.12.10
 # Last verified install: 2026-08-11 (macOS arm64, Milestone 1)
@@ -81,7 +81,7 @@ ruff==0.16.2                  # linter + formatter
 
 
 # ============================================================
-# NOT INSTALLED YET — added in the milestone that needs them.
+# NOT INSTALLED YET. Added in the milestone that needs them.
 # Kept out deliberately to avoid unnecessary dependencies.
 # ============================================================
 #

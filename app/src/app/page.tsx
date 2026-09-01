@@ -38,7 +38,7 @@ const WORKFLOW = [
   },
   {
     title: "Analyse",
-    body: "The paper is sent to Gemini in three separate reasoning passes — summary, gaps, then literature review.",
+    body: "The paper is sent to Gemini in three separate reasoning passes: summary, gaps, then literature review.",
   },
   {
     title: "Read the workspace",
@@ -65,7 +65,7 @@ export default function DashboardPage() {
           <h1 className="pagehead__title">ResearchForge</h1>
           <p className="pagehead__sub">
             Upload a research paper to generate a summary, identify research
-            gaps, and produce a literature review — each grounded in the paper
+            gaps, and produce a literature review, each grounded in the paper
             you provide.
           </p>
         </div>
@@ -159,7 +159,7 @@ export default function DashboardPage() {
               <IconPapers size={16} />
               <span className="stat__label">Saved library</span>
             </div>
-            <div className="stat__value faint">—</div>
+            <div className="stat__value faint">Not available</div>
             <p className="stat__note">
               Not yet available. Counts across sessions need the database
               milestone; see <Link href="/papers">My Papers</Link>.
@@ -196,7 +196,7 @@ export default function DashboardPage() {
             >
               Upload a PDF above and the summary, research gaps, and literature
               review will open here. Results are held for this browser session
-              only — saving them between visits needs the database milestone.
+              only. Saving them between visits needs the database milestone.
             </EmptyState>
           </div>
         )}

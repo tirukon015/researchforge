@@ -6,7 +6,7 @@ An *embedding* turns text into a list of numbers that represents its meaning.
 Text with similar meaning produces similar numbers, which is what lets us
 search a paper library by meaning instead of by keyword.
 
-The **dimension count is permanent** — it is baked into the database column
+The **dimension count is permanent**, it is baked into the database column
 type (`vector(1024)`), and changing it means re-embedding every paper. That
 makes the choice of provider expensive to reverse *unless* the rest of the
 system is written against an interface rather than against one vendor.
@@ -15,7 +15,7 @@ That is what this file is: the contract every provider must satisfy.
 
 **Nothing in this file may be vendor-specific.** No Jina types, no Jina task
 strings, no Jina URLs. Ingestion and retrieval code imports only from here, so
-swapping providers becomes a configuration change plus a re-index — never a
+swapping providers becomes a configuration change plus a re-index, never a
 rewrite. Vendor details belong in the concrete implementation (e.g. `jina.py`).
 
 WHY THERE ARE TWO EMBED METHODS
@@ -26,7 +26,7 @@ questions and passages are different kinds of text:
     query:   "What are the limitations of attention?"   (short, interrogative)
     passage: "A known drawback of self-attention is..."  (long, declarative)
 
-Good retrieval models encode each with a mode tuned for its role — called
+Good retrieval models encode each with a mode tuned for its role, called
 *asymmetric retrieval*. A provider that has no such distinction can simply
 implement both methods the same way; the interface stays valid either way.
 """
@@ -51,7 +51,7 @@ class EmbeddingError(RuntimeError):
     """Raised when a provider cannot produce embeddings.
 
     Wrapping vendor errors in one project-owned exception means calling code
-    never has to import a vendor's error classes — which would defeat the
+    never has to import a vendor's error classes, which would defeat the
     whole point of this abstraction.
     """
 
@@ -66,7 +66,7 @@ class EmbeddingProvider(ABC):
 
         Recorded per chunk so a future migration can tell exactly which rows
         were produced by which model. Vectors from two different models are
-        **not** comparable — mixing them returns meaningless results with no
+        **not** comparable, mixing them returns meaningless results with no
         error, so this column is what makes a provider switch safe.
         """
 
@@ -102,7 +102,7 @@ class EmbeddingProvider(ABC):
         """Fail loudly if a vector is the wrong length.
 
         A wrong-length vector is rejected by Postgres anyway, but catching it
-        here produces a far clearer message than a database type error — and
+        here produces a far clearer message than a database type error, and
         catches a misconfigured provider before it writes anything.
         """
         if len(vector) != self.dimensions:

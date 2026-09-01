@@ -23,8 +23,8 @@ import { useSession } from "@/lib/session";
 export default function SettingsPage() {
   const { health } = useSession();
 
-  const version = health.kind === "ok" ? health.data.version : "—";
-  const environment = health.kind === "ok" ? health.data.environment : "—";
+  const version = health.kind === "ok" ? health.data.version : "Not available";
+  const environment = health.kind === "ok" ? health.data.environment : "Not available";
   const appName = health.kind === "ok" ? health.data.app_name : "ResearchForge";
 
   return (
@@ -48,11 +48,11 @@ export default function SettingsPage() {
         </div>
         <div className="card">
           <div className="card__body brandpanel">
-            {/* The full lockup — mark, wordmark, and tagline — belongs on an
+            {/* The full lockup (mark, wordmark, and tagline) belongs on an
                 identity surface like this one, not repeated through the app. */}
             <Image
               src="/brand/researchforge-full.png"
-              alt="ResearchForge — Explore, Analyze, Innovate"
+              alt="ResearchForge. Explore, Analyze, Innovate"
               width={380}
               height={380}
               className="brandpanel__logo"
@@ -65,7 +65,7 @@ export default function SettingsPage() {
               <p className="muted" style={{ margin: "0 0 .75rem" }}>
                 AI Research Assistant. Upload a research paper to generate a
                 summary, identify research gaps, and produce a literature
-                review — each grounded in the paper you provide.
+                review, each grounded in the paper you provide.
               </p>
               <div className="tagrow">
                 <span className="badge badge--accent">Explore</span>
@@ -126,7 +126,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <dt>Analysis passes</dt>
-                <dd>3 — summary, research gaps, literature review</dd>
+                <dd>3: summary, research gaps, literature review</dd>
               </div>
               <div>
                 <dt>Grounding</dt>
@@ -144,7 +144,7 @@ export default function SettingsPage() {
                 <p>
                   <strong>Credentials are server-side only.</strong> API keys
                   are read by the FastAPI backend from its environment and are
-                  never sent to the browser — not in full, and not masked.
+                  never sent to the browser, not in full and not masked.
                 </p>
               </div>
             </div>

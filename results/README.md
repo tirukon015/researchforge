@@ -27,4 +27,4 @@ Every result file must record:
 - The raw numbers, including the bad ones
 
 Negative and disappointing results are reported here too. Honest limitations
-are worth more marks — and more credibility — than flattering numbers.
+are worth more marks, and more credibility, than flattering numbers.

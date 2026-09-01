@@ -3,7 +3,7 @@
 WHY THIS FILE EXISTS
 --------------------
 Every setting the app needs (ports, URLs, and later API keys) is read from
-*environment variables* — never hard-coded. This gives us three things:
+*environment variables*, never hard-coded. This gives us three things:
 
 1. **Security.** Secrets live in a local `.env` file that Git ignores, so a key
    can never be committed by accident.
@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.app_env.lower() == "production"
 
-    # ---------- Embedding model (LOCKED — decision D6) ----------
+    # ---------- Embedding model (LOCKED, decision D6) ----------
     # Jina jina-embeddings-v3 @ 1024 dimensions.
     #
     # ⚠️ embedding_dimensions is PERMANENT. It must match the vector(1024)
@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     embedding_model: str = "jina-embeddings-v3"
     embedding_dimensions: int = 1024
 
-    # The API key. Empty by default so the app still starts without it —
+    # The API key. Empty by default so the app still starts without it,
     # only the embedding feature fails, and with a clear message.
     # NEVER hard-code a key here; it comes from .env or the host environment.
     jina_api_key: str = ""
@@ -160,6 +160,38 @@ class Settings(BaseSettings):
         if configured and (not prefixes or configured.lower().startswith(prefixes)):
             return configured
         return default
+
+    # ---------- Database (Supabase) ----------
+    # Empty by default so the API still starts and analysis still works
+    # without a database. The library endpoints then answer with a clear
+    # "not configured" rather than the whole app refusing to boot -
+    # analysis is genuinely useful on its own.
+    #
+    # SECURITY: the service-role key bypasses Row Level Security. It is
+    # read here, server-side only, and must NEVER be given a NEXT_PUBLIC_
+    # prefix or returned by any endpoint.
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
+    storage_bucket: str = "papers"
+
+    @property
+    def has_database(self) -> bool:
+        """Whether durable storage is configured.
+
+        Both halves are required: a URL without a key cannot authenticate,
+        and a key without a URL has nowhere to go. Reporting "configured"
+        on half a pair would turn a clear 503 into a confusing timeout.
+        """
+        return bool(self.supabase_url.strip() and self.supabase_service_role_key.strip())
+
+    @property
+    def supabase_rest_url(self) -> str:
+        """Base URL of the PostgREST API, without a trailing slash."""
+        return f"{self.supabase_url.strip().rstrip('/')}/rest/v1"
+
+    @property
+    def supabase_storage_url(self) -> str:
+        return f"{self.supabase_url.strip().rstrip('/')}/storage/v1"
 
     # ---------- Upload limits ----------
     max_upload_size_mb: int = 25

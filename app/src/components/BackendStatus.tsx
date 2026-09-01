@@ -29,7 +29,7 @@ export default function BackendStatus() {
       className="status"
       onClick={refreshHealth}
       disabled={health.kind === "loading"}
-      title={`Backend: ${API_BASE_LABEL} — click to re-check`}
+      title={`Backend: ${API_BASE_LABEL}. Click to re-check.`}
     >
       <span className={`dot ${dot}`} />
       {text}

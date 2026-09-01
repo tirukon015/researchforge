@@ -1,9 +1,9 @@
 """Jina AI implementation of `EmbeddingProvider`.
 
-Model: `jina-embeddings-v3` — 1024 dimensions, 8,192-token input, 89 languages.
+Model: `jina-embeddings-v3`. 1024 dimensions, 8,192-token input, 89 languages.
 Paper: https://arxiv.org/abs/2409.10173
 
-ASYMMETRIC RETRIEVAL — the reason this model was chosen
+ASYMMETRIC RETRIEVAL: the reason this model was chosen
 -------------------------------------------------------
 `jina-embeddings-v3` ships task-specific LoRA adapters. Documents are embedded
 with `retrieval.passage` and questions with `retrieval.query`, so each is
@@ -16,7 +16,7 @@ in the codebase speaks in terms of `EmbeddingTask.DOCUMENT` / `.QUERY`.
 ⚠️ NETWORK CALLS ARE NOT IMPLEMENTED YET (Milestone 4).
 Request construction below is complete and unit-tested offline. The HTTP send
 is deliberately deferred until the milestone that can verify it against the
-real API — this project does not ship untested network code.
+real API, this project does not ship untested network code.
 """
 
 from src.rag.embeddings.base import (
@@ -85,8 +85,8 @@ class JinaEmbeddingProvider(EmbeddingProvider):
     def build_payload(self, texts: list[str], task: EmbeddingTask) -> dict:
         """Build the JSON body for an embeddings request.
 
-        Separated from the HTTP call so the request shape — especially the
-        task mode, which is the whole point of choosing this model — can be
+        Separated from the HTTP call so the request shape, especially the
+        task mode, which is the whole point of choosing this model, can be
         verified in tests without spending a single token.
         """
         if not texts:
@@ -120,7 +120,7 @@ class JinaEmbeddingProvider(EmbeddingProvider):
         return [texts[i : i + self._batch_size] for i in range(0, len(texts), self._batch_size)]
 
     def __repr__(self) -> str:
-        """Redacted repr — must never expose the API key in logs or tracebacks."""
+        """Redacted repr. Must never expose the API key in logs or tracebacks."""
         return (
             f"JinaEmbeddingProvider(model={self._model!r}, "
             f"dimensions={self._dimensions}, api_key='***redacted***')"

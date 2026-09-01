@@ -1,12 +1,12 @@
 """Tests for the embedding abstraction.
 
 ⚠️ NO NETWORK CALLS. Every test here runs offline and spends zero tokens.
-Tests must be free, fast, and deterministic — see CLAUDE.md section 9.
+Tests must be free, fast, and deterministic, see CLAUDE.md section 9.
 
 Two things are verified:
   1. The `EmbeddingProvider` interface is genuinely provider-independent.
   2. The Jina provider builds the *correct request*, especially the
-     asymmetric task modes — the reason this model was chosen.
+     asymmetric task modes, the reason this model was chosen.
 """
 
 import pytest
@@ -94,7 +94,7 @@ class TestDimensionValidation:
 
 
 class TestJinaAsymmetricRetrieval:
-    """The task modes are the reason this model was chosen — verify them."""
+    """The task modes are the reason this model was chosen, verify them."""
 
     def provider(self) -> JinaEmbeddingProvider:
         return JinaEmbeddingProvider(api_key=FAKE_KEY)
@@ -148,7 +148,7 @@ class TestJinaRequestConstruction:
 
 
 class TestJinaBatching:
-    """Batching is mandatory — the free token allocation is finite."""
+    """Batching is mandatory, the free token allocation is finite."""
 
     def test_texts_are_split_into_batches(self) -> None:
         provider = JinaEmbeddingProvider(api_key=FAKE_KEY, batch_size=10)
@@ -198,7 +198,7 @@ class TestEmbeddingSettings:
         assert self.settings().embedding_dimensions <= 2000
 
     def test_no_api_key_is_hardcoded(self) -> None:
-        """The default must be empty — a key belongs only in .env."""
+        """The default must be empty, a key belongs only in .env."""
         assert self.settings().jina_api_key == ""
         assert self.settings().has_embedding_credentials is False
 

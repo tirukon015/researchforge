@@ -31,7 +31,7 @@ export default function LiteratureReviewPage() {
           <h1 className="pagehead__title">Literature Review</h1>
           <p className="pagehead__sub">
             Generated from the prior work discussed within the paper you
-            analysed — not from a search across a body of literature.
+            analysed, not from a search across a body of literature.
           </p>
         </div>
       </header>
@@ -100,9 +100,9 @@ export default function LiteratureReviewPage() {
               relevant passages from across the corpus before the model writes.
             </p>
             <p className="muted" style={{ marginBottom: 0 }}>
-              The decisions are recorded — Jina{" "}
+              The decisions are recorded (Jina{" "}
               <code>jina-embeddings-v3</code> at 1024 dimensions, with pgvector
-              for storage — but none of it is wired up, so nothing on this page
+              for storage), but none of it is wired up, so nothing on this page
               draws from more than the single paper above.
             </p>
           </div>

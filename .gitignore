@@ -1,5 +1,5 @@
 # ============================================================
-# AI Research Paper Assistant — .gitignore
+# AI Research Paper Assistant: .gitignore
 # Rule of thumb: never commit secrets, dependencies, build
 # output, uploaded papers, or generated model artifacts.
 # ============================================================
@@ -42,7 +42,7 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual environments (these are machine-specific — never commit)
+# Virtual environments (these are machine-specific, never commit)
 venv/
 .venv/
 env/

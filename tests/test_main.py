@@ -41,7 +41,7 @@ class TestHealthEndpoint:
     def test_health_leaks_no_secrets(self) -> None:
         """A public endpoint must never expose configuration secrets.
 
-        This test exists because health endpoints are unauthenticated — anyone
+        This test exists because health endpoints are unauthenticated, anyone
         on the internet can call them.
         """
         raw = client.get("/health").text.lower()

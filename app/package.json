@@ -2,7 +2,7 @@
   "name": "researchforge-frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "ResearchForge frontend — Next.js. Vercel Root Directory is this folder (app/).",
+  "description": "ResearchForge frontend. Next.js. Vercel Root Directory is this folder (app/).",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

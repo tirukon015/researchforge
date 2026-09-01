@@ -1,7 +1,7 @@
 -- ============================================================
--- ResearchForge — Migration 001: Initial schema
+-- ResearchForge, Migration 001: Initial schema
 -- ============================================================
--- Milestone 2 — Database Foundation
+-- Milestone 2: Database Foundation
 --
 -- ⚠️  TARGET: the ResearchForge Supabase project ONLY.
 --     Before running this, confirm the SUPABASE_URL host matches
@@ -28,7 +28,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 
 -- ------------------------------------------------------------
--- 2. papers — one row per uploaded research paper
+-- 2. papers: one row per uploaded research paper
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS papers (
     id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -64,7 +64,7 @@ COMMENT ON COLUMN papers.status IS
 
 
 -- ------------------------------------------------------------
--- 3. chunks — the searchable pieces of each paper, with vectors
+-- 3. chunks: the searchable pieces of each paper, with vectors
 -- ------------------------------------------------------------
 -- A paper is split into overlapping chunks. Each chunk is embedded
 -- into a 1024-number vector. Similarity search runs over this table.
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     embedding             vector(1024),
 
     -- Provenance: records WHICH model produced this vector. This is what
-    -- makes a future provider migration safe — you can tell at a glance
+    -- makes a future provider migration safe, you can tell at a glance
     -- which rows still need re-embedding, instead of silently mixing
     -- vectors from two different models (which returns garbage results).
     embedding_model       text    NOT NULL,
@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS chunks (
 
 COMMENT ON TABLE  chunks IS 'Searchable text chunks with their embedding vectors.';
 COMMENT ON COLUMN chunks.page_number IS
-    'Source page. Required for citations — do not drop.';
+    'Source page. Required for citations. Do not drop.';
 COMMENT ON COLUMN chunks.embedding IS
     'vector(1024) from jina-embeddings-v3. Dimension is permanent.';
 COMMENT ON COLUMN chunks.embedding_model IS
@@ -166,7 +166,7 @@ END $$;
 --
 -- With RLS enabled and NO permissive policy, the public `anon` key can
 -- read nothing. The backend uses the service-role key, which bypasses
--- RLS — so the API keeps working while the database stays closed to the
+-- RLS, so the API keeps working while the database stays closed to the
 -- browser. Per-user policies are added with authentication (feature E5).
 ALTER TABLE papers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chunks ENABLE ROW LEVEL SECURITY;

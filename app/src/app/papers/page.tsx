@@ -59,7 +59,7 @@ export default function PapersPage() {
         <div>
           <p>
             <strong>This list is not saved.</strong> ResearchForge is stateless
-            today — analyses live in this browser tab and are gone on reload.
+            today. Analyses live in this browser tab and are gone on reload.
             A durable library arrives with the database milestone.
           </p>
         </div>
@@ -88,8 +88,8 @@ export default function PapersPage() {
                 </Link>
               }
             >
-              Analysed papers will be listed here — title, filename, date, and
-              status — once persistent storage is enabled. Nothing is shown in
+              Analysed papers will be listed here with title, filename, date, and
+              status, once persistent storage is enabled. Nothing is shown in
               the meantime, because sample entries would misrepresent what the
               application currently stores.
             </EmptyState>

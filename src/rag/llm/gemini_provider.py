@@ -1,13 +1,13 @@
 """Google Gemini implementation of `LLMProvider`.
 
-Default model: `gemini-3.7-flash` — the latest stable Flash model, chosen
+Default model: `gemini-3.7-flash`, the latest stable Flash model, chosen
 because a Vercel function has a 300-second ceiling and a Flash-tier model with
 `thinking_level` turned up finishes a three-call analysis comfortably inside it.
 `LLM_MODEL` overrides it, so switching to `gemini-2.5-pro` for deeper reasoning
 is one environment variable and no code change.
 
 This file is the ONLY place Google SDK types appear. Everything else in the
-codebase speaks in terms of `LLMProvider`, `LLMError`, and Pydantic models —
+codebase speaks in terms of `LLMProvider`, `LLMError`, and Pydantic models,
 the same rule `anthropic_provider.py` follows.
 
 WHY `response_format` WITH A JSON SCHEMA
@@ -16,7 +16,7 @@ Passing `Model.model_json_schema()` constrains the model to our schema, so the
 reply is JSON we can validate rather than prose or a markdown-fenced object
 that needs regex repair. It is the Gemini equivalent of Anthropic's
 `messages.parse`, and it is what lets `generate_structured` promise either a
-valid object or an exception — never a half-filled one.
+valid object or an exception, never a half-filled one.
 
 Validation still happens here with `model_validate_json`. The schema constrains
 the model; it does not make the SDK hand back a typed instance.
@@ -51,7 +51,7 @@ DEFAULT_MODEL = "gemini-3.7-flash"
 
 # `LLM_EFFORT` uses the project's own vocabulary (shared with the Anthropic
 # provider, which accepts up to "max"). Gemini's `thinking_level` stops at
-# "high", so the two levels above it map down rather than being rejected —
+# "high", so the two levels above it map down rather than being rejected:
 # asking for more thought than a vendor offers should get you its maximum, not
 # an error. Confining the mapping here is what keeps `LLM_EFFORT` portable.
 _THINKING_LEVEL_BY_EFFORT: dict[str, str] = {
@@ -121,8 +121,8 @@ def _caused_by(exc: BaseException, kind: type[BaseException]) -> bool:
 def thinking_level_for_effort(effort: str) -> str:
     """Translate `LLM_EFFORT` into Gemini's `thinking_level`.
 
-    Exposed (rather than kept private) because it encodes a real decision — how
-    "max" degrades on a vendor that has no such level — and a decision worth
+    Exposed (rather than kept private) because it encodes a real decision, how
+    "max" degrades on a vendor that has no such level, and a decision worth
     making is worth testing directly.
     """
     return _THINKING_LEVEL_BY_EFFORT.get(effort.strip().lower(), _DEFAULT_THINKING_LEVEL)
