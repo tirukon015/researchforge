@@ -84,8 +84,60 @@ class Settings(BaseSettings):
         """Whether an embedding API key is configured."""
         return bool(self.jina_api_key.strip())
 
-    # NOTE: the LLM provider (D5) and database settings are deliberately NOT
-    # defined yet. They are added in the milestone that needs them.
+    # ---------- LLM (generation) ----------
+    # D5 is still formally OPEN. Rather than hard-wiring a vendor, the code
+    # talks to `src.rag.llm.base.LLMProvider`, and `llm_provider` selects the
+    # concrete implementation. Switching vendors is a new file plus this one
+    # env var - never a rewrite. Anthropic is implemented first because
+    # .env.example lists it as Option A.
+    llm_provider: str = "anthropic"
+    llm_model: str = "claude-opus-5"
+
+    # Effort controls how hard the model thinks. "high" is the sensible
+    # default for analytical work; "low" is enough for smoke tests.
+    llm_effort: str = "high"
+    llm_max_output_tokens: int = 16000
+
+    # Server-side only. Empty by default so the app still starts without it -
+    # only the /api/analyze endpoint fails, and with a clear message.
+    anthropic_api_key: str = ""
+
+    @property
+    def has_llm_credentials(self) -> bool:
+        """Whether a generation API key is configured."""
+        return bool(self.anthropic_api_key.strip())
+
+    # ---------- Upload limits ----------
+    max_upload_size_mb: int = 25
+    allowed_file_types: str = "application/pdf"
+
+    @property
+    def max_upload_size_bytes(self) -> int:
+        return self.max_upload_size_mb * 1024 * 1024
+
+    @property
+    def allowed_file_types_list(self) -> list[str]:
+        return [t.strip() for t in self.allowed_file_types.split(",") if t.strip()]
+
+    # ---------- Long-paper handling ----------
+    # Claude Opus 5 has a 1,000,000-token context window, so an ordinary paper
+    # (5k-60k tokens) fits whole and chunking would only lose cross-section
+    # context. Chunking therefore ACTIVATES ONLY above this threshold, where
+    # sending everything really would be unsafe. Measured in characters
+    # because that needs no tokeniser dependency; ~4 chars per token is the
+    # usual English approximation, so 400k chars is roughly 100k tokens - a
+    # deliberately conservative fraction of the window.
+    long_paper_char_threshold: int = 400_000
+    # Named `long_paper_*` deliberately: CHUNK_SIZE / CHUNK_OVERLAP in
+    # .env.example belong to the future RAG embedding chunker, which splits
+    # text into ~1,000-char pieces. Reusing those names here would make one
+    # setting silently drive two unrelated chunkers - and a 1,000-char
+    # long-paper chunk would fire hundreds of LLM calls per upload.
+    long_paper_chunk_size: int = 40_000
+    long_paper_chunk_overlap: int = 2_000
+
+    # NOTE: database settings are deliberately NOT defined yet. They are added
+    # in the milestone that needs them (Milestone 2).
 
 
 @lru_cache

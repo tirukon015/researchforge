@@ -13,7 +13,8 @@
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Next.js](https://img.shields.io/badge/next.js-frontend-black)
 
-> ⚠️ **Project status: Milestone 1 — Environment & Foundations complete.**
+> ⚠️ **Project status: working MVP — upload a PDF and get a summary, research gaps, and a literature review.**
+> Runs locally only. **No database and no deployment yet** — analysis is stateless and nothing is saved between requests.
 > The backend foundation runs (FastAPI + `/health`, 9/9 tests passing), but the
 > AI features are not built yet. Follow [`PROJECT_PLAN.md`](PROJECT_PLAN.md)
 > for the development roadmap.
@@ -147,7 +148,7 @@ copy .env.example .env    # Windows (Command Prompt)
 Then open `.env` and fill in your own values.
 **`.env` is git-ignored and must never be committed.**
 
-### 3. Backend setup *(available from Milestone 1)*
+### 3. Backend setup
 
 **macOS / Linux**
 ```bash
@@ -167,7 +168,7 @@ uvicorn src.main:app --reload --port 8000
 
 API docs will be available at <http://localhost:8000/docs>.
 
-### 4. Frontend setup *(available from Milestone 9)*
+### 4. Frontend setup
 
 ```bash
 cd app
@@ -177,14 +178,100 @@ npm run dev
 
 App will be available at <http://localhost:3000>.
 
+The frontend reads `NEXT_PUBLIC_API_BASE_URL` (see `app/.env.example`).
+It defaults to `http://localhost:8000`, so no configuration is needed
+for local development.
+
+---
+
+## 🔬 Using ResearchForge
+
+1. Start the backend (step 3) and the frontend (step 4).
+2. Open <http://localhost:3000>. The header shows whether the backend is reachable.
+3. Select a PDF and press **Analyse paper**.
+4. Read the results under the **Summary**, **Research Gaps**, and
+   **Literature Review** tabs.
+
+Analysis typically takes one to three minutes: the backend makes three separate
+reasoning calls, one per task.
+
+### AI configuration
+
+An **Anthropic API key is required** for analysis. Everything else — the server,
+`/health`, PDF extraction, and the whole test suite — works without one.
+
+```bash
+# in .env  (git-ignored; never commit it)
+ANTHROPIC_API_KEY=your-key-here
+```
+
+Without a key, `POST /api/analyze` returns **503** with a message naming the
+missing variable. Set `LLM_EFFORT=low` for cheaper, faster runs while testing.
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `LLM_PROVIDER` | `anthropic` | Selects the provider implementation |
+| `LLM_MODEL` | `claude-opus-5` | 1M-token context window |
+| `LLM_EFFORT` | `high` | `low` … `max` — how hard the model thinks |
+| `LONG_PAPER_CHAR_THRESHOLD` | `400000` | Above this, chunking activates |
+
+### API
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/health` | Liveness check used by hosting platforms |
+| `GET` | `/` | API description |
+| `POST` | `/api/analyze` | Upload a PDF; returns summary, gaps, and review |
+
+`POST /api/analyze` takes `multipart/form-data` with one `file` field.
+
+```bash
+curl -X POST http://localhost:8000/api/analyze   -F "file=@paper.pdf;type=application/pdf"
+```
+
+| Status | Meaning |
+|---|---|
+| `200` | Analysis succeeded |
+| `413` | File exceeds the upload size limit |
+| `422` | Not a readable PDF (wrong type, empty, or a scan with no text layer) |
+| `502` | The AI service failed or returned unusable output |
+| `503` | No AI credentials configured on the server |
+
+Interactive docs: <http://localhost:8000/docs>.
+
+### How it works
+
+```
+PDF → validate + extract (pypdf) → clean → fits in context?
+        ├── yes → analyse whole            (the normal path)
+        └── no  → chunk → digest each → combine
+   → 3 independent structured LLM calls → JSON → UI
+```
+
+Scanned PDFs are **rejected**, not silently returned empty — ResearchForge does
+no OCR. Where a paper does not support a section, the output says so rather than
+inventing content.
+
 ---
 
 ## 🧪 Testing
 
 ```bash
-pytest                 # backend tests
-cd app && npm test     # frontend tests
+pytest        # backend tests — fully offline, no API key, zero tokens
 ```
+
+The suite replaces the LLM with a fake provider and builds real PDF bytes in
+`tests/pdf_fixtures.py`, so PDF extraction is genuinely exercised.
+
+Frontend checks:
+
+```bash
+cd app
+npx tsc --noEmit   # type check
+npm run build      # production build
+```
+
+There is no frontend unit-test runner yet.
 
 ---
 
@@ -226,15 +313,15 @@ Details: [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §N.
 |---|---|---|
 | 0 | Setup & planning | ✅ Complete |
 | 1 | Environment & foundations | ✅ Complete |
+| 3 | PDF ingestion & text extraction | ✅ Complete |
+| 6 | Paper summarisation | ✅ Complete |
+| 7 | Research gap identification | ✅ Complete |
+| 8 | Literature review generation | ✅ Complete (single-paper scope) |
+| 9 | Frontend foundation | ✅ Complete |
+| 10 | Frontend features | ✅ Upload + results UI |
 | 2 | Database foundation (Supabase + pgvector) | ⬜ Next |
-| 3 | PDF ingestion & text extraction | ⬜ |
-| 4 | Chunking & embeddings | ⬜ |
+| 4 | Chunking & embeddings (semantic search) | ⬜ Not needed by the MVP |
 | 5 | Retrieval & grounded Q&A | ⬜ |
-| 6 | Paper summarisation | ⬜ |
-| 7 | Research gap identification | ⬜ |
-| 8 | Literature review generation | ⬜ |
-| 9 | Frontend foundation | ⬜ |
-| 10 | Frontend features | ⬜ |
 | 11 | Deployment | ⬜ |
 | 12 | Evaluation & polish | ⬜ |
 
@@ -244,10 +331,10 @@ Details: [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §N.
 
 | # | Requirement | Milestone |
 |---|---|---|
-| 1 | Allow users to upload research papers | M3, M9 |
-| 2 | Generate summaries of research papers | M6, M10 |
-| 3 | Identify research gaps | M7, M10 |
-| 4 | Produce literature reviews | M8, M10 |
+| 1 | Allow users to upload research papers | ✅ Implemented |
+| 2 | Generate summaries of research papers | ✅ Implemented |
+| 3 | Identify research gaps | ✅ Implemented |
+| 4 | Produce literature reviews | ✅ Implemented — scoped to the related work discussed *within* the uploaded paper. A cross-corpus review needs the multi-paper library (M2). |
 | 5 | Provide a Research Assistant Application | M9–M11 |
 
 ---

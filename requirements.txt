@@ -44,6 +44,27 @@ sqlalchemy==2.0.51            # database toolkit / query builder
 pgvector==0.5.0               # Python support for the pgvector column type
 
 
+# ---------- PDF ingestion ----------
+pypdf==6.16.2                 # PDF text extraction. Pure Python, BSD-3, no
+                              # system binaries - so it installs identically on
+                              # macOS/Windows/Linux (CLAUDE.md section 7).
+                              # pymupdf is faster but AGPL, which is
+                              # incompatible with this MIT repo.
+                              # PROJECT_PLAN section F decision 3 (benchmark
+                              # pypdf vs pdfplumber on real papers) is still
+                              # open; only src/ingestion/pdf.py::_read_pages
+                              # touches the library, so swapping is one
+                              # function.
+python-multipart==0.0.32      # required by FastAPI to accept file uploads
+
+
+# ---------- LLM generation (D5 still formally open) ----------
+anthropic==1.2.0              # Only provider implemented so far. Imported ONLY
+                              # by src/rag/llm/anthropic_provider.py; the rest
+                              # of the codebase depends on the LLMProvider
+                              # interface, so a second provider is additive.
+
+
 # ---------- Testing ----------
 pytest==9.1.1                 # test runner
 httpx2==2.10.0                # HTTP client used by FastAPI's TestClient.
@@ -62,28 +83,27 @@ ruff==0.16.2                  # linter + formatter
 # Kept out deliberately to avoid unnecessary dependencies.
 # ============================================================
 #
-# --- Milestone 3: Supabase Storage client ---
-# supabase            # only needed once we upload PDFs
+# --- Supabase Storage client ---
+# supabase            # only needed once uploaded PDFs are persisted.
+#                     # The MVP is stateless, so it is not required yet.
 #
-# --- Milestone 3: File upload & PDF extraction ---
-# python-multipart    # required by FastAPI to accept file uploads
-#   PDF library still [UNDECIDED] — to be chosen by benchmarking
-#   on REAL papers (see PROJECT_PLAN.md §F decision 3):
-# pypdf               # simple, pure Python, permissive licence
-# pdfplumber          # better layout and table handling
-# pymupdf             # fastest and best quality, but AGPL licence
+# --- Alternative PDF libraries (benchmark candidates) ---
+# pdfplumber          # better layout and table handling than pypdf
+# pymupdf             # fastest and best quality, but AGPL - see note above
 #
-# --- Milestone 5: LLM provider --- [UNDECIDED: D5]
-#   Exactly ONE of these will be added once the owner decides:
-# anthropic
+# --- Alternative LLM providers --- [D5 still open]
+#   anthropic is installed above. Adding one of these means adding
+#   src/rag/llm/<vendor>_provider.py and setting LLM_PROVIDER.
 # openai
 # google-genai
 #
 # --- Milestone 4: Embedding model --- [LOCKED: D6]
-#   OpenAI text-embedding-3-small @ 1536 dims.
-#   The SDK is added in Milestone 4, when the first embedding is
-#   actually generated. Not installed before it is needed.
-# openai
+#   Jina `jina-embeddings-v3` @ 1024 dims. See CLAUDE.md §9.
+#   No vendor SDK is required: the provider calls the REST API directly
+#   (src/rag/embeddings/jina.py). Only an HTTP client is needed, and it is
+#   added in Milestone 4 when the network calls are actually implemented.
+#   OpenAI embeddings were evaluated and REJECTED (no free tier) --
+#   see PROJECT_PLAN.md §F decision 2.
 #
 # --- Later / optional ---
 # pytest-asyncio      # testing async endpoints

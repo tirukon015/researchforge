@@ -27,8 +27,12 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Anchored to the repo root: these are Python build artefacts produced at
+# the top level. Unanchored `lib/` also matched app/src/lib/, silently
+# excluding the frontend's API client from Git - a fresh clone then
+# failed to build with 'Module not found: @/lib/api'.
+/lib/
+/lib64/
 parts/
 sdist/
 var/

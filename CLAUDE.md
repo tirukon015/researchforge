@@ -312,8 +312,21 @@ A milestone is complete only when **all** of these are true:
 
 ## 14. Current Status
 
-- **Phase:** 1 — Environment & Foundations ✅ complete (2026-08-11)
+- **Phase:** working local MVP — upload → summary + research gaps + literature
+  review, end to end.
 - **Next phase:** 2 — Database Foundation (awaiting my approval)
-- **Working:** Python 3.12.10 venv, FastAPI with `/health`, 9/9 tests passing
-- **Still open:** LLM provider (D5), embedding model (D6), backend host (D7)
-- **No external API connected yet. No database yet. No RAG built yet.**
+- **Working:** FastAPI with `/health` and `POST /api/analyze`; real PDF
+  extraction (pypdf); long-paper chunking; three structured Anthropic calls;
+  Next.js frontend with upload and results UI. **68/68 tests passing.**
+- **Verified on:** Python 3.14.7 (Windows). `requirements.txt` pins were
+  authored for 3.12 and last verified on macOS 3.12.10; they install and pass
+  on 3.14.7 too.
+- **Still open:** LLM provider (D5), backend host (D7)
+- **Locked:** embedding model (D6) — Jina `jina-embeddings-v3` @ 1024 dims (see §9)
+- **D5 status:** Anthropic `claude-opus-5` is implemented behind
+  `src/rag/llm/base.py::LLMProvider`. The decision is **not** locked — adding a
+  provider is one new file plus `LLM_PROVIDER`.
+- **Not built:** no database, no persistence, no auth, no embeddings/retrieval
+  (the MVP does not need them), no deployment. Analysis is stateless.
+- **Requires an `ANTHROPIC_API_KEY`** to analyse; everything else, including the
+  whole test suite, runs without one.

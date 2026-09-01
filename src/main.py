@@ -1,12 +1,14 @@
 """FastAPI application entry point.
 
-MILESTONE 1 SCOPE
------------------
-This is deliberately minimal. It proves the backend foundation works:
-the server starts, it reads configuration from the environment, it responds
-to a request, and it is covered by a test.
+SCOPE
+-----
+The server starts, reads configuration from the environment, exposes a health
+check for the hosting platform, and mounts the paper-analysis API.
 
-No AI, no database, no RAG yet. Those arrive in later milestones.
+The analysis endpoint lives in `src/api/analyze.py`; this module wires the
+application together and owns the two system endpoints.
+
+Still no database: the analysis flow is stateless by design.
 
 RUN IT LOCALLY
 --------------
@@ -22,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from src import __version__
+from src.api.analyze import router as analyze_router
 from src.config import Settings, get_settings
 
 # ---------------------------------------------------------------------------
@@ -80,6 +83,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# The analysis API. Kept in its own module so this file stays a wiring file
+# rather than growing into the application.
+app.include_router(analyze_router)
 
 
 # ---------------------------------------------------------------------------
