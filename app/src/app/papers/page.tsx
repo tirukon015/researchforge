@@ -1,46 +1,63 @@
 "use client";
 
 /**
- * My Papers.
+ * My Papers: the research library.
  *
- * There is no database yet, so there is no library. This page says that
- * plainly rather than showing sample rows: a fabricated list would be the most
- * convincing lie in the product, and the first thing a demo would expose.
- *
- * The card markup below is real and already renders session analyses. When
- * persistence lands, the only change needed is where `records` comes from -
- * the presentation is done.
+ * Search, filter, sort and delete all run against the backend rather than over
+ * a client-side copy, so the list stays correct however large it grows and the
+ * total is honest on every page.
  */
 
-import Link from "next/link";
-import { useMemo } from "react";
+import { useCallback, useState } from "react";
 
-import EmptyState from "@/components/EmptyState";
-import { IconAlert, IconFile, IconInfo } from "@/components/Icons";
-import { useSession } from "@/lib/session";
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
+import {
+  EmptyLibrary,
+  LibraryError,
+  LibraryToolbar,
+  LibraryUnavailable,
+  LoadingRows,
+  PaperCard,
+} from "@/components/LibraryUI";
+import { ApiError, deletePaper, type PaperListItem } from "@/lib/api";
+import {
+  DEFAULT_QUERY,
+  useLibrary,
+  useSelection,
+  type LibraryQuery,
+} from "@/lib/library";
 
 export default function PapersPage() {
-  const { records, selectRecord } = useSession();
+  const [query, setQuery] = useState<LibraryQuery>(DEFAULT_QUERY);
+  const { state, reload } = useLibrary(query);
+  const { isSelected, toggle } = useSelection();
 
-  const rows = useMemo(
-    () =>
-      records.map((record) => ({
-        id: record.id,
-        title: record.filename,
-        pages: record.data.document.page_count,
-        size: formatSize(record.sizeBytes),
-        when: record.completedAt,
-        gaps: record.data.research_gaps.insufficient_evidence
-          ? null
-          : record.data.research_gaps.identified_gaps.length,
-      })),
-    [records],
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const remove = useCallback(
+    async (paper: PaperListItem) => {
+      // Guarding on state as well as disabling the button: a fast second click
+      // would otherwise fire a second DELETE for a row that is already gone.
+      if (deleting) return;
+      setDeleting(paper.id);
+      setDeleteError(null);
+      try {
+        await deletePaper(paper.id);
+        await reload();
+      } catch (error) {
+        setDeleteError(
+          error instanceof ApiError
+            ? error.message
+            : "That paper could not be deleted. Please try again.",
+        );
+      } finally {
+        setDeleting(null);
+      }
+    },
+    [deleting, reload],
   );
+
+  const filtered = Boolean(query.search) || query.status !== "all";
 
   return (
     <>
@@ -48,122 +65,52 @@ export default function PapersPage() {
         <div>
           <h1 className="pagehead__title">My Papers</h1>
           <p className="pagehead__sub">
-            Papers you have analysed. Saving them between visits requires
-            persistent storage, which is not built yet.
+            Papers you have saved, with their summary, research gaps and
+            literature review. Select two or more to build a cross-paper review.
           </p>
         </div>
       </header>
 
-      <div className="notice notice--info">
-        <IconInfo size={16} />
-        <div>
-          <p>
-            <strong>This list is not saved.</strong> ResearchForge is stateless
-            today. Analyses live in this browser tab and are gone on reload.
-            A durable library arrives with the database milestone.
-          </p>
-        </div>
-      </div>
+      {state.kind === "unavailable" ? (
+        <LibraryUnavailable detail={state.detail} />
+      ) : state.kind === "failed" ? (
+        <LibraryError message={state.error.message} onRetry={() => void reload()} />
+      ) : (
+        <>
+          <LibraryToolbar
+            query={query}
+            onChange={setQuery}
+            total={state.kind === "ready" ? state.data.total : undefined}
+          />
 
-      <section className="section" aria-labelledby="library-heading">
-        <div className="section__head">
-          <h2 className="section__title" id="library-heading">
-            {rows.length > 0 ? "Analysed in this session" : "Library"}
-          </h2>
-          {rows.length > 0 && (
-            <span className="faint" style={{ fontSize: ".8rem" }}>
-              {rows.length} paper{rows.length === 1 ? "" : "s"}
-            </span>
-          )}
-        </div>
-
-        {rows.length === 0 ? (
-          <div className="card">
-            <EmptyState
-              art
-              title="No saved papers yet"
-              actions={
-                <Link href="/" className="btn btn--primary">
-                  Analyse a paper
-                </Link>
-              }
-            >
-              Analysed papers will be listed here with title, filename, date, and
-              status, once persistent storage is enabled. Nothing is shown in
-              the meantime, because sample entries would misrepresent what the
-              application currently stores.
-            </EmptyState>
-          </div>
-        ) : (
-          <ul
-            style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: ".8rem" }}
-          >
-            {rows.map((row) => (
-              <li key={row.id} className="card">
-                <div className="card__body">
-                  <div style={{ display: "flex", gap: ".9rem", alignItems: "flex-start" }}>
-                    <IconFile size={22} className="filecard__icon" />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="filecard__name">{row.title}</div>
-                      <div className="filecard__meta">
-                        {row.pages} page{row.pages === 1 ? "" : "s"} · {row.size} ·
-                        analysed{" "}
-                        {row.when.toLocaleString([], {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })}
-                      </div>
-                      <div className="tagrow" style={{ marginTop: ".6rem" }}>
-                        <span className="badge badge--ok">Analysed</span>
-                        {typeof row.gaps === "number" && (
-                          <span className="badge">
-                            {row.gaps} gap{row.gaps === 1 ? "" : "s"}
-                          </span>
-                        )}
-                        <span className="badge">Session only</span>
-                      </div>
-                    </div>
-                    <Link
-                      href="/"
-                      className="btn btn--sm"
-                      onClick={() => selectRecord(row.id)}
-                    >
-                      Open analysis
-                    </Link>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="section" aria-labelledby="planned-heading">
-        <div className="section__head">
-          <h2 className="section__title" id="planned-heading">
-            What persistence will add
-          </h2>
-        </div>
-        <div className="card">
-          <div className="card__body">
-            <div className="notice notice--warn" style={{ marginBottom: "1rem" }}>
-              <IconAlert size={16} />
+          {deleteError && (
+            <div className="notice notice--error" role="alert">
               <div>
-                <p>
-                  Not yet implemented. Listed so the gap between the current
-                  build and the plan is visible, not to suggest it exists.
-                </p>
+                <p>{deleteError}</p>
               </div>
             </div>
-            <ul style={{ margin: 0, paddingLeft: "1.1rem", color: "var(--text-2)" }}>
-              <li>Papers saved across sessions and devices</li>
-              <li>Re-opening a past analysis without paying for it again</li>
-              <li>Searching your own library by title or finding</li>
-              <li>Cross-paper literature review over everything you have uploaded</li>
-            </ul>
-          </div>
-        </div>
-      </section>
+          )}
+
+          {state.kind === "loading" ? (
+            <LoadingRows />
+          ) : state.data.papers.length === 0 ? (
+            <EmptyLibrary filtered={filtered} />
+          ) : (
+            <div className="paperlist">
+              {state.data.papers.map((paper) => (
+                <PaperCard
+                  key={paper.id}
+                  paper={paper}
+                  selected={isSelected(paper.id)}
+                  onToggle={toggle}
+                  onDelete={remove}
+                  deleting={deleting === paper.id}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </>
   );
 }

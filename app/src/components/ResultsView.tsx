@@ -21,6 +21,7 @@ import {
   ReviewSection,
   SummarySection,
 } from "@/components/AnalysisSections";
+import SavePaperButton from "@/components/SavePaperButton";
 import type { AnalysisResponse } from "@/lib/api";
 
 type TabId = "summary" | "gaps" | "review" | "paper";
@@ -28,9 +29,11 @@ type TabId = "summary" | "gaps" | "review" | "paper";
 export default function ResultsView({
   data,
   completedAt,
+  fileSizeBytes,
 }: {
   data: AnalysisResponse;
   completedAt?: Date;
+  fileSizeBytes?: number;
 }) {
   const [tab, setTab] = useState<TabId>("summary");
   const { document: doc, summary, research_gaps: gaps, literature_review: review } = data;
@@ -73,11 +76,17 @@ export default function ResultsView({
             )}
           </p>
         </div>
-        <div className="tagrow">
-          {doc.truncated && <span className="badge">Truncated</span>}
-          <span className="badge badge--mono" title="Model that produced this analysis">
-            {data.model_used}
-          </span>
+        <div className="results__actions">
+          <div className="tagrow">
+            {doc.truncated && <span className="badge">Truncated</span>}
+            <span className="badge badge--mono" title="Model that produced this analysis">
+              {data.model_used}
+            </span>
+          </div>
+          {/* Saving is what turns a session result into a library entry. It is
+              offered here, beside the analysis it would save, rather than on a
+              separate screen. */}
+          <SavePaperButton data={data} fileSizeBytes={fileSizeBytes} />
         </div>
       </header>
 

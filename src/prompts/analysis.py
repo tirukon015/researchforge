@@ -20,7 +20,8 @@ independently.
 """
 
 # 1.1.0 added the punctuation rule to GROUNDING_SYSTEM_PROMPT.
-PROMPT_VERSION = "1.1.0"
+# 1.2.0 added CROSS_REVIEW_PROMPT for reviews over several saved papers.
+PROMPT_VERSION = "1.2.0"
 
 # ---------------------------------------------------------------------------
 # Shared system prompt
@@ -158,3 +159,52 @@ research paper, which was too long to supply in full. Treat them together as \
 the paper's content. Where a digest notes that a section was boilerplate, \
 simply skip it.\
 """
+
+
+# ---------------------------------------------------------------------------
+# Cross-paper review
+# ---------------------------------------------------------------------------
+# The scope rules differ from the single-paper review, so this is its own
+# prompt rather than a parameter on that one. Here the model HAS several
+# papers, so comparison across them is legitimate. What is still forbidden is
+# reaching outside the supplied set, and the biggest risk is the model
+# smoothing several papers into one narrative that none of them actually
+# support.
+
+CROSS_REVIEW_PROMPT = """
+Produce a literature review across the {count} papers supplied below.
+
+Each paper is given as its own analysed summary, findings, and limitations.
+These are your only sources. You have the papers listed here and nothing else.
+
+SCOPE RULES
+- Compare and contrast ONLY the papers below. Do not introduce a study,
+author, year, or finding that does not appear in them.
+- Attribute every claim to the paper it came from, by title, so a reader
+can check it. A theme drawn from two papers must name both.
+- Where the papers disagree, say so rather than reconciling them into a
+consensus none of them states.
+- Where they simply do not overlap, say that too. A set of unrelated
+papers is a real and honest finding, not a failure to look harder.
+- State in `scope_note` how many papers this review covers and that it
+surveys only those.
+
+If the supplied papers have too little in common to review together, set
+`insufficient_evidence` to true and explain why in `scope_note`.
+
+<papers>
+{content}
+</papers>
+"""
+
+# One paper's contribution to the combined prompt. The title is repeated in
+# every section so attribution survives the model's own summarising.
+CROSS_REVIEW_PAPER_BLOCK = """--- PAPER {index} of {total}: {title} ---
+Research problem: {problem}
+Methodology: {methodology}
+Key findings:
+{findings}
+Stated limitations:
+{limitations}
+Themes in the prior work it discusses:
+{themes}"""

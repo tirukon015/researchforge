@@ -96,6 +96,8 @@ export interface HealthPayload {
   app_name: string;
   version: string;
   environment: string;
+  /** Whether durable storage is configured on the server. */
+  library?: boolean;
 }
 
 /* ------------------------------------------------------------------ *
@@ -110,13 +112,21 @@ export interface HealthPayload {
  *   upstream  - the AI service failed or returned something unusable
  *   config    - the server has no API key: an operator must fix it
  *   malformed - we got a 200 whose body was not the shape we expect
+ *   unavailable - the research library is not connected (503)
+ *   notfound  - the record does not exist (404)
+ *   conflict  - the write would destroy something (409)
  */
 export type ApiErrorKind =
   | "offline"
   | "rejected"
   | "upstream"
   | "config"
-  | "malformed";
+  | "malformed"
+  // Library-specific. "unavailable" means there is no database configured,
+  // which must never be shown as "you have no papers".
+  | "unavailable"
+  | "notfound"
+  | "conflict";
 
 export class ApiError extends Error {
   readonly kind: ApiErrorKind;
@@ -241,4 +251,196 @@ export async function analyzePaper(
     );
   }
   return body;
+}
+
+/* ------------------------------------------------------------------ *
+ * Research library
+ * ------------------------------------------------------------------ *
+ * These mirror src/schemas/library.py. The library is optional: a
+ * deployment with no database answers 503, which surfaces here as an
+ * ApiError of kind "unavailable" so the interface can say "not connected"
+ * rather than "you have no papers". Those are different claims.
+ */
+
+export type PaperStatus = "processing" | "ready" | "failed";
+export type SortOrder = "newest" | "oldest" | "title";
+
+export interface PaperListItem {
+  id: string;
+  title: string;
+  filename: string;
+  status: PaperStatus;
+  page_count: number | null;
+  file_size_bytes: number | null;
+  created_at: string;
+  updated_at: string;
+  has_analysis: boolean;
+  gap_count: number | null;
+}
+
+export interface PaperListResponse {
+  papers: PaperListItem[];
+  total: number;
+}
+
+export interface PaperDetail {
+  id: string;
+  title: string;
+  filename: string;
+  status: PaperStatus;
+  page_count: number | null;
+  extracted_characters: number | null;
+  file_size_bytes: number | null;
+  content_type: string | null;
+  created_at: string;
+  updated_at: string;
+  summary: Summary | null;
+  research_gaps: ResearchGaps | null;
+  literature_review: LiteratureReview | null;
+  model_used: string | null;
+  chunk_count: number | null;
+  truncated: boolean | null;
+}
+
+export interface ReviewPaperRef {
+  id: string;
+  title: string;
+  filename: string;
+}
+
+export interface ReviewRecord {
+  id: string;
+  title: string;
+  model_used: string;
+  content: LiteratureReview;
+  paper_count: number;
+  papers: ReviewPaperRef[];
+  created_at: string;
+}
+
+export interface ReviewListResponse {
+  reviews: ReviewRecord[];
+  total: number;
+}
+
+export interface LibraryStats {
+  papers_analysed: number;
+  research_gaps_found: number;
+  literature_reviews: number;
+  saved_papers: number;
+}
+
+export interface SavePaperInput {
+  title: string;
+  filename: string;
+  file_size_bytes?: number | null;
+  content_type?: string | null;
+  document: DocumentInfo;
+  summary: Summary;
+  research_gaps: ResearchGaps;
+  literature_review: LiteratureReview;
+  model_used: string;
+}
+
+/** One place that turns any library response into a value or an ApiError. */
+async function libraryRequest<T>(
+  path: string,
+  init?: RequestInit & { timeoutMs?: number },
+): Promise<T> {
+  const { timeoutMs = 30_000, ...rest } = init ?? {};
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...rest,
+      signal: AbortSignal.timeout(timeoutMs),
+      cache: "no-store",
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      throw new ApiError("offline", "The request took too long. Please try again.");
+    }
+    throw new ApiError("offline", "Could not reach the server. Check your connection.");
+  }
+
+  if (!res.ok) {
+    const detail = await readDetail(res, `The server returned HTTP ${res.status}.`);
+    if (res.status === 503) throw new ApiError("unavailable", detail, res.status);
+    if (res.status === 404) throw new ApiError("notfound", detail, res.status);
+    if (res.status === 409) throw new ApiError("conflict", detail, res.status);
+    if (res.status === 422 || res.status === 413) {
+      throw new ApiError("rejected", detail, res.status);
+    }
+    if (res.status >= 500) throw new ApiError("upstream", detail, res.status);
+    throw new ApiError("rejected", detail, res.status);
+  }
+
+  if (res.status === 204) return undefined as T;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new ApiError("malformed", "The server returned a response that was not valid JSON.");
+  }
+}
+
+export function savePaper(input: SavePaperInput): Promise<PaperDetail> {
+  return libraryRequest<PaperDetail>("/api/papers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export function listPapers(options: {
+  search?: string;
+  status?: PaperStatus | "all";
+  sort?: SortOrder;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<PaperListResponse> {
+  const params = new URLSearchParams();
+  if (options.search?.trim()) params.set("search", options.search.trim());
+  if (options.status && options.status !== "all") params.set("status", options.status);
+  if (options.sort) params.set("sort", options.sort);
+  if (options.limit) params.set("limit", String(options.limit));
+  if (options.offset) params.set("offset", String(options.offset));
+  const query = params.toString();
+  return libraryRequest<PaperListResponse>(`/api/papers${query ? `?${query}` : ""}`);
+}
+
+export function getPaper(id: string): Promise<PaperDetail> {
+  return libraryRequest<PaperDetail>(`/api/papers/${encodeURIComponent(id)}`);
+}
+
+export function deletePaper(id: string): Promise<{ id: string; deleted: boolean }> {
+  return libraryRequest(`/api/papers/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function getLibraryStats(): Promise<LibraryStats> {
+  return libraryRequest<LibraryStats>("/api/papers/stats");
+}
+
+/**
+ * Generate a review across several saved papers.
+ *
+ * The timeout is generous for the same reason `analyzePaper`'s is: this is a
+ * reasoning call over several papers and legitimately takes minutes.
+ */
+export function createCrossReview(
+  paperIds: string[],
+  title?: string,
+): Promise<ReviewRecord> {
+  return libraryRequest<ReviewRecord>("/api/reviews/cross", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ paper_ids: paperIds, ...(title ? { title } : {}) }),
+    timeoutMs: 600_000,
+  });
+}
+
+export function listReviews(): Promise<ReviewListResponse> {
+  return libraryRequest<ReviewListResponse>("/api/reviews");
+}
+
+export function deleteReview(id: string): Promise<{ id: string; deleted: boolean }> {
+  return libraryRequest(`/api/reviews/${encodeURIComponent(id)}`, { method: "DELETE" });
 }

@@ -4,13 +4,12 @@
  * Dashboard.
  *
  * Ordered so the next action is the first thing read: brand, then Upload, then
- * what has happened, then how it works. Upload is never more than one screen
- * from the top and is never behind a menu.
+ * what has happened, then how it works.
  *
- * Every statistic on this page is counted from analyses this browser session
- * actually completed. Nothing is seeded, sampled, or estimated - with no
- * database, the honest number is usually zero, and zero with an explanation is
- * worth more to a reader than a plausible-looking figure.
+ * Every figure in the overview comes from the database. When the library is
+ * not connected the cards say so instead of showing zeros, because zero is a
+ * claim ("you have no papers") that a deployment with nowhere to store papers
+ * cannot make.
  */
 
 import Link from "next/link";
@@ -19,88 +18,82 @@ import { useCallback, useRef } from "react";
 import BackendStatus from "@/components/BackendStatus";
 import EmptyState from "@/components/EmptyState";
 import {
-  IconAlert,
   IconGap,
   IconPapers,
   IconReview,
+  IconStack,
   IconUpload,
 } from "@/components/Icons";
 import ResultsView from "@/components/ResultsView";
 import UploadPanel from "@/components/UploadPanel";
-import { sessionStats, useSession } from "@/lib/session";
-
-const IS_LOCAL_DEV = process.env.NODE_ENV === "development";
+import { useLibraryStats } from "@/lib/library";
+import { useSession } from "@/lib/session";
 
 const WORKFLOW = [
   {
-    title: "Upload a paper",
-    body: "Drop in a PDF. Text is extracted server-side with pypdf; scanned images are rejected rather than guessed at.",
+    title: "Upload",
+    body: "Drop in a PDF. Text is extracted server side, and a scanned paper with no text layer is rejected rather than guessed at.",
   },
   {
     title: "Analyse",
-    body: "The paper is sent to Gemini in three separate reasoning passes: summary, gaps, then literature review.",
+    body: "The paper goes to Gemini in three separate reasoning passes, each constrained to a schema and validated on return.",
   },
   {
-    title: "Read the workspace",
-    body: "Results open in tabs with the evidence each gap rests on, so every claim can be traced back to the paper.",
+    title: "Discover",
+    body: "Read the summary and the research gaps, each gap shown with the evidence in the paper that supports it.",
+  },
+  {
+    title: "Review",
+    body: "Save the paper to your library, then build a literature review from one paper or across several.",
   },
 ];
 
 export default function DashboardPage() {
-  const { health, records, current, work } = useSession();
+  const { records, current } = useSession();
+  const { state: stats } = useLibraryStats();
   const uploadRef = useRef<HTMLDivElement>(null);
-
-  const stats = sessionStats(records);
-  const busy = work.kind === "working";
 
   const focusUpload = useCallback(() => {
     uploadRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  // One helper for all four cards. A real count when the library answered, the
+  // word "Not connected" when it did not, and a dash while it is still loading.
+  const figure = (value: number | undefined) => {
+    if (stats.kind === "ready") return String(value ?? 0);
+    if (stats.kind === "loading") return "";
+    return "Not connected";
+  };
+  const unavailable = stats.kind === "unavailable" || stats.kind === "failed";
+
   return (
     <>
-      <header className="pagehead">
-        <div>
-          <span className="pagehead__eyebrow">AI Research Assistant</span>
-          <h1 className="pagehead__title">ResearchForge</h1>
-          <p className="pagehead__sub">
-            Upload a research paper to generate a summary, identify research
-            gaps, and produce a literature review, each grounded in the paper
-            you provide.
+      <header className="hero">
+        <div className="hero__text">
+          <span className="hero__eyebrow">AI Research Assistant</span>
+          <h1 className="hero__title">ResearchForge</h1>
+          <p className="hero__sub">
+            Upload academic papers, analyse them, identify research gaps, and
+            build literature-review insights. Every result is grounded in the
+            paper you provide.
           </p>
-        </div>
-        <div className="btnrow">
-          <BackendStatus />
-          <button className="btn btn--primary" onClick={focusUpload} disabled={busy}>
-            <IconUpload size={16} />
-            Upload paper
-          </button>
-        </div>
-      </header>
-
-      {health.kind === "down" && (
-        <div className="notice notice--error" role="alert">
-          <IconAlert size={16} />
-          <div>
-            <p>
-              <strong>The backend is not reachable.</strong> {health.detail}{" "}
-              Analysis is unavailable until it responds.
-            </p>
-            <p>
-              {IS_LOCAL_DEV ? (
-                <>
-                  Start it with{" "}
-                  <code>uvicorn src.main:app --reload --port 8000</code>.
-                </>
-              ) : (
-                <>Try again in a moment; if it persists, the deployment needs attention.</>
-              )}
-            </p>
+          <div className="btnrow hero__actions">
+            <button className="btn btn--primary btn--lg" onClick={focusUpload}>
+              <IconUpload size={16} />
+              Upload research paper
+            </button>
+            <Link href="/papers" className="btn">
+              My Papers
+            </Link>
+            <Link href="/literature-review" className="btn">
+              Literature Review
+            </Link>
           </div>
         </div>
-      )}
+        <BackendStatus />
+      </header>
 
-      <div ref={uploadRef} style={{ scrollMarginTop: "1rem", marginTop: "1.5rem" }}>
+      <div ref={uploadRef} style={{ scrollMarginTop: "5rem" }}>
         <UploadPanel />
       </div>
 
@@ -109,62 +102,62 @@ export default function DashboardPage() {
           <h2 className="section__title" id="overview-heading">
             Overview
           </h2>
-          <span className="faint" style={{ fontSize: ".8rem" }}>
-            This browser session
-          </span>
+          {unavailable && (
+            <span className="faint" style={{ fontSize: ".8rem" }}>
+              Library not connected
+            </span>
+          )}
         </div>
 
         <div className="stats">
-          <article className="stat">
-            <div className="stat__top">
-              <IconPapers size={16} />
-              <span className="stat__label">Papers analysed</span>
-            </div>
-            <div className="stat__value">{stats.papersAnalysed}</div>
-            <p className="stat__note">
-              {stats.papersAnalysed === 0
-                ? "Your analysed papers will appear here once you upload one."
-                : "Counted from analyses completed in this session."}
-            </p>
-          </article>
-
-          <article className="stat">
-            <div className="stat__top">
-              <IconGap size={16} />
-              <span className="stat__label">Research gaps found</span>
-            </div>
-            <div className="stat__value">{stats.gapsFound}</div>
-            <p className="stat__note">
-              {stats.papersAnalysed === 0
-                ? "Gaps identified from your papers will be counted here."
-                : "Only gaps the analysis could support with evidence are counted."}
-            </p>
-          </article>
-
-          <article className="stat">
-            <div className="stat__top">
-              <IconReview size={16} />
-              <span className="stat__label">Literature reviews</span>
-            </div>
-            <div className="stat__value">{stats.reviews}</div>
-            <p className="stat__note">
-              {stats.papersAnalysed === 0
-                ? "One review is produced per analysed paper."
-                : "Reviews the analysis had enough prior work to write."}
-            </p>
-          </article>
-
-          <article className="stat">
-            <div className="stat__top">
-              <IconPapers size={16} />
-              <span className="stat__label">Saved library</span>
-            </div>
-            <div className="stat__value faint">Not available</div>
-            <p className="stat__note">
-              Not yet available. Counts across sessions need the database
-              milestone; see <Link href="/papers">My Papers</Link>.
-            </p>
-          </article>
+          <StatCard
+            icon={<IconPapers size={16} />}
+            label="Papers analysed"
+            value={figure(stats.kind === "ready" ? stats.data.papers_analysed : undefined)}
+            note={
+              unavailable
+                ? "Counts appear once durable storage is connected."
+                : "Analyses stored in your library."
+            }
+            loading={stats.kind === "loading"}
+          />
+          <StatCard
+            icon={<IconGap size={16} />}
+            label="Research gaps"
+            value={figure(
+              stats.kind === "ready" ? stats.data.research_gaps_found : undefined,
+            )}
+            note={
+              unavailable
+                ? "Gaps are counted from saved analyses."
+                : "Only gaps the analysis could support with evidence."
+            }
+            loading={stats.kind === "loading"}
+          />
+          <StatCard
+            icon={<IconReview size={16} />}
+            label="Literature reviews"
+            value={figure(
+              stats.kind === "ready" ? stats.data.literature_reviews : undefined,
+            )}
+            note={
+              unavailable
+                ? "Saved reviews will be counted here."
+                : "Reviews saved across your papers."
+            }
+            loading={stats.kind === "loading"}
+          />
+          <StatCard
+            icon={<IconStack size={16} />}
+            label="Saved papers"
+            value={figure(stats.kind === "ready" ? stats.data.saved_papers : undefined)}
+            note={
+              unavailable
+                ? "Papers are saved once storage is connected."
+                : "Papers in your research library."
+            }
+            loading={stats.kind === "loading"}
+          />
         </div>
       </section>
 
@@ -173,15 +166,19 @@ export default function DashboardPage() {
           <h2 className="section__title" id="recent-heading">
             Recent analysis
           </h2>
-          {records.length > 1 && (
-            <span className="faint" style={{ fontSize: ".8rem" }}>
-              {records.length} in this session
-            </span>
+          {records.length > 0 && (
+            <Link href="/papers" className="btn btn--sm">
+              View all papers
+            </Link>
           )}
         </div>
 
         {current ? (
-          <ResultsView data={current.data} completedAt={current.completedAt} />
+          <ResultsView
+            data={current.data}
+            completedAt={current.completedAt}
+            fileSizeBytes={current.sizeBytes}
+          />
         ) : (
           <div className="card">
             <EmptyState
@@ -190,32 +187,17 @@ export default function DashboardPage() {
               actions={
                 <button className="btn btn--primary" onClick={focusUpload}>
                   <IconUpload size={16} />
-                  Upload paper
+                  Upload your first research paper
                 </button>
               }
             >
-              Upload a PDF above and the summary, research gaps, and literature
-              review will open here. Results are held for this browser session
-              only. Saving them between visits needs the database milestone.
+              Upload a PDF above and the summary, research gaps and literature
+              review will open here. Save it afterwards to keep it in your
+              library.
             </EmptyState>
           </div>
         )}
       </section>
-
-      {records.length > 1 && (
-        <section className="section" aria-labelledby="session-heading">
-          <div className="section__head">
-            <h2 className="section__title" id="session-heading">
-              Earlier in this session
-            </h2>
-          </div>
-          <div className="card">
-            <div className="card__body">
-              <SessionList />
-            </div>
-          </div>
-        </section>
-      )}
 
       <section className="section" aria-labelledby="workflow-heading">
         <div className="section__head">
@@ -237,37 +219,29 @@ export default function DashboardPage() {
   );
 }
 
-/** Switcher for the other analyses run in this session. */
-function SessionList() {
-  const { records, current, selectRecord } = useSession();
-
+function StatCard({
+  icon,
+  label,
+  value,
+  note,
+  loading,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  note: string;
+  loading: boolean;
+}) {
   return (
-    <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: ".5rem" }}>
-      {records.map((record) => {
-        const isCurrent = current?.id === record.id;
-        return (
-          <li key={record.id} className="filecard">
-            <IconPapers size={20} className="filecard__icon" />
-            <div className="filecard__body">
-              <div className="filecard__name">{record.filename}</div>
-              <div className="filecard__meta">
-                {record.data.document.page_count} pages ·{" "}
-                {record.completedAt.toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </div>
-            </div>
-            {isCurrent ? (
-              <span className="badge badge--accent">Open</span>
-            ) : (
-              <button className="btn btn--sm" onClick={() => selectRecord(record.id)}>
-                Open
-              </button>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+    <article className="stat">
+      <div className="stat__top">
+        {icon}
+        <span className="stat__label">{label}</span>
+      </div>
+      <div className={`stat__value${value === "Not connected" ? " stat__value--muted" : ""}`}>
+        {loading ? <span className="stat__pending" aria-label="Loading" /> : value}
+      </div>
+      <p className="stat__note">{note}</p>
+    </article>
   );
 }

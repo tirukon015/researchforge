@@ -76,8 +76,12 @@
   color-scheme: light;
 }
 
+/* Dark tokens, applied in two situations:
+   1. the system asks for dark AND the user has not explicitly chosen light
+   2. the user explicitly chose dark, which wins over the system
+   Light lives on bare :root above, so light stays the default in both. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0d1117;
     --panel: #161b22;
     --panel-2: #1b212b;
@@ -115,6 +119,45 @@
 
     color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #1b212b;
+  --panel-3: #212936;
+  --sidebar-bg: #080f1d;
+  --sidebar-fg: #9fb2ce;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+
+  --border: #2b323d;
+  --border-soft: #232a34;
+  --ring: rgba(90, 160, 255, 0.4);
+
+  --text: #e6ebf2;
+  --text-2: #b6c1d0;
+  --muted: #8b97a8;
+  --faint: #6b7684;
+
+  --accent: #5aa0ff;
+  --accent-hover: #7ab3ff;
+  --accent-fg: #08121f;
+  --accent-soft: #13233c;
+  --accent-line: #24406b;
+
+  --ok: #46b563;
+  --ok-soft: #10251a;
+  --warn: #d0a02c;
+  --warn-soft: #241d0d;
+  --err: #f0796b;
+  --err-soft: #2a1513;
+  --err-line: #4a241f;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+  color-scheme: dark;
 }
 
 *,
@@ -159,11 +202,12 @@ svg {
 }
 
 /* ============================================================
-   App shell
+   App shell: top navigation, content, footer. NO SIDEBAR.
    ============================================================ */
 
 .shell {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
 }
 
@@ -181,131 +225,108 @@ svg {
   left: 0;
 }
 
-/* ---------- sidebar ---------- */
+/* ---------- top navigation ---------- */
 
-.sidebar {
-  width: var(--sidebar-w);
-  flex: none;
-  background: var(--sidebar-bg);
-  color: var(--sidebar-fg);
-  display: flex;
-  flex-direction: column;
+.topnav {
   position: sticky;
   top: 0;
-  height: 100vh;
-  border-right: 1px solid var(--sidebar-border);
+  z-index: 40;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  /* The header sits above scrolling content, so it needs its own ground.
+     A translucent bar would let dense text show through it. */
+  box-shadow: var(--shadow-sm);
 }
 
-.sidebar__brand {
+.topnav__inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  height: var(--topbar-h);
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-  padding: 1.1rem 1.15rem;
-  border-bottom: 1px solid var(--sidebar-border);
-  min-height: var(--topbar-h);
+  gap: 1.25rem;
 }
-.sidebar__brand:hover {
+
+.topnav__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: none;
+  color: var(--text);
+}
+.topnav__brand:hover {
   text-decoration: none;
 }
 
-/* object-fit contain keeps the mark's aspect ratio at any box size. */
+/* object-fit contain keeps the mark's aspect ratio inside a square box. */
 .brandmark {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   object-fit: contain;
   flex: none;
 }
 
-.sidebar__name {
-  display: block;
-  color: var(--sidebar-fg-strong);
+.topnav__wordmark {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.topnav__name {
   font-weight: 700;
   font-size: 0.98rem;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
+  letter-spacing: -0.015em;
 }
-.sidebar__sub {
-  display: block;
-  font-size: 0.72rem;
-  color: var(--sidebar-fg);
-  opacity: 0.75;
+.topnav__tagline {
+  font-size: 0.68rem;
+  color: var(--muted);
   letter-spacing: 0.02em;
 }
 
-.sidebar__nav {
-  padding: 0.9rem 0.7rem;
+.topnav__links {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.15rem;
-  flex: 1;
-  overflow-y: auto;
-}
-
-.sidebar__label {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--sidebar-fg);
-  opacity: 0.55;
-  font-weight: 700;
-  padding: 0.6rem 0.65rem 0.35rem;
+  margin-left: auto;
 }
 
 .navlink {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.55rem 0.65rem;
+  gap: 0.5rem;
+  padding: 0.45rem 0.75rem;
   border-radius: var(--r-md);
-  color: var(--sidebar-fg);
-  font-size: 0.9rem;
-  font-weight: 500;
-  border-left: 2px solid transparent;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 550;
+  white-space: nowrap;
 }
 .navlink:hover {
-  background: var(--sidebar-hover);
-  color: var(--sidebar-fg-strong);
+  background: var(--panel-3);
+  color: var(--text);
   text-decoration: none;
 }
-/* The active item is marked three ways - fill, rule, and weight - so it
-   survives both themes and does not rely on colour alone. */
+/* The active route is marked by fill AND weight AND colour, so it reads
+   without depending on colour alone. */
 .navlink--active {
-  background: var(--sidebar-active);
-  color: var(--sidebar-fg-strong);
-  font-weight: 650;
-  border-left-color: var(--blue-500);
-}
-.navlink svg {
-  flex: none;
-  opacity: 0.9;
-}
-
-.sidebar__foot {
-  padding: 0.9rem 1.15rem;
-  border-top: 1px solid var(--sidebar-border);
-  font-size: 0.74rem;
-  color: var(--sidebar-fg);
-  opacity: 0.75;
-}
-
-/* ---------- mobile nav ---------- */
-
-.topbar {
-  display: none;
-  align-items: center;
-  gap: 0.75rem;
-  height: var(--topbar-h);
-  padding: 0 0.9rem;
-  background: var(--sidebar-bg);
-  color: var(--sidebar-fg-strong);
-  position: sticky;
-  top: 0;
-  z-index: 30;
-}
-.topbar__title {
+  background: var(--accent-soft);
+  color: var(--accent);
   font-weight: 700;
+}
+.navlink--block {
+  display: flex;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
   font-size: 0.95rem;
 }
+
+.topnav__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: none;
+}
+
 .iconbtn {
   display: inline-flex;
   align-items: center;
@@ -313,70 +334,173 @@ svg {
   width: 36px;
   height: 36px;
   border-radius: var(--r-md);
-  border: 1px solid var(--sidebar-border);
-  background: transparent;
-  color: inherit;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
   cursor: pointer;
   font: inherit;
 }
 .iconbtn:hover {
-  background: var(--sidebar-hover);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-.scrim {
+/* The menu button exists only below the breakpoint. */
+.topnav__menu {
   display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(6, 14, 28, 0.55);
-  z-index: 40;
-  border: 0;
-  padding: 0;
 }
 
-.workspace {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
+.topnav__mobile {
+  display: none;
 }
+
+/* ---------- theme control ---------- */
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+}
+.segmented--full {
+  width: 100%;
+}
+.segmented__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.35rem 0.6rem;
+  border: none;
+  border-radius: calc(var(--r-md) - 2px);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.segmented--full .segmented__btn {
+  flex: 1;
+  padding: 0.55rem 0.6rem;
+  font-size: 0.9rem;
+}
+.segmented__btn:hover {
+  color: var(--text);
+}
+.segmented__btn--on {
+  background: var(--panel);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+/* The label is hidden in the compact header control but stays in the
+   accessibility tree, so the buttons keep their names. */
+.segmented__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+/* ---------- content ---------- */
 
 .page {
   width: 100%;
-  max-width: 1120px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 1.9rem 1.6rem 4rem;
+  padding: 2rem 1.5rem 4rem;
+  flex: 1;
 }
 
+/* ---------- footer ---------- */
+
+.sitefooter {
+  border-top: 1px solid var(--border);
+  background: var(--panel-2);
+  margin-top: auto;
+}
+.sitefooter__inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.sitefooter__name {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+.sitefooter__tagline {
+  margin: 0.15rem 0 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sitefooter__note {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.sitefooter__links {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+/* ---------- responsive ---------- */
+
 @media (max-width: 900px) {
-  .shell {
-    display: block;
+  .topnav__inner {
+    padding: 0 1rem;
   }
-  .topbar {
+  /* The horizontal links collapse into a disclosure panel under the header.
+     It pushes content down rather than sliding over it: an overlay drawer is
+     a sidebar wearing a different hat. */
+  .topnav__links {
+    display: none;
+  }
+  .topnav__menu {
+    display: inline-flex;
+  }
+  .topnav__actions {
+    margin-left: auto;
+  }
+  .topnav__mobile {
     display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.6rem 1rem 0.9rem;
+    border-top: 1px solid var(--border-soft);
+    background: var(--panel);
   }
-  .sidebar {
-    position: fixed;
-    z-index: 50;
-    top: 0;
-    left: 0;
-    transform: translateX(-100%);
-    transition: transform 0.18s ease;
-    box-shadow: var(--shadow-lg);
+  .topnav__mobile[hidden] {
+    display: none;
   }
-  .sidebar--open {
-    transform: translateX(0);
-  }
-  .scrim--on {
-    display: block;
+  .topnav__tagline {
+    display: none;
   }
   .page {
     padding: 1.25rem 1rem 3rem;
   }
+  .sitefooter__inner {
+    gap: 1.25rem;
+  }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .sidebar {
-    transition: none;
+@media (max-width: 560px) {
+  .segmented__btn {
+    padding: 0.35rem 0.45rem;
   }
 }
 
@@ -1252,4 +1376,357 @@ code {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ============================================================
+   Hero, dashboard
+   ============================================================ */
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.75rem;
+}
+.hero__text {
+  max-width: 46rem;
+}
+.hero__eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  color: var(--accent);
+  margin-bottom: 0.4rem;
+}
+.hero__title {
+  font-size: 2rem;
+  line-height: 1.15;
+  margin: 0 0 0.5rem;
+  letter-spacing: -0.03em;
+}
+.hero__sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+  max-width: 42rem;
+}
+.hero__actions {
+  margin-top: 1.15rem;
+}
+
+.stat__value--muted {
+  font-size: 1.05rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+/* A neutral placeholder while a count loads. Showing 0 first and correcting it
+   would state something false, briefly, every single time. */
+.stat__pending {
+  display: inline-block;
+  width: 2.2rem;
+  height: 1.4rem;
+  border-radius: var(--r-sm);
+  background: var(--panel-3);
+}
+
+/* ============================================================
+   Library toolbar
+   ============================================================ */
+
+.toolbar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 1.1rem;
+}
+.toolbar__search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 16rem;
+  min-width: 12rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  color: var(--muted);
+}
+.toolbar__search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.toolbar__search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.55rem 0;
+  min-width: 0;
+}
+.toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.toolbar__label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.toolbar select {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+.toolbar select:hover {
+  border-color: var(--accent);
+}
+.toolbar__count {
+  font-size: 0.82rem;
+  margin-left: auto;
+}
+
+/* ============================================================
+   Paper cards
+   ============================================================ */
+
+.paperlist {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.papercard {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  padding: 1rem 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+}
+.papercard--selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.papercard__pick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  margin-top: 0.15rem;
+  cursor: pointer;
+}
+.papercard__pick input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.papercard__icon {
+  color: var(--accent);
+  flex: none;
+  margin-top: 0.1rem;
+}
+.papercard__body {
+  flex: 1;
+  min-width: 0;
+}
+.papercard__title {
+  margin: 0 0 0.25rem;
+  font-size: 0.98rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.papercard__title a {
+  color: var(--text);
+}
+.papercard__title a:hover {
+  color: var(--accent);
+}
+.papercard__meta {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.papercard__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.badge--err {
+  background: var(--err-soft);
+  border-color: var(--err-line);
+  color: var(--err);
+}
+
+/* ============================================================
+   Workspace
+   ============================================================ */
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  gap: 1.5rem;
+  align-items: start;
+}
+.workspace__panel {
+  position: sticky;
+  top: calc(var(--topbar-h) + 1.25rem);
+}
+
+@media (max-width: 980px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workspace__panel {
+    position: static;
+    order: -1;
+  }
+}
+
+.selectedlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.selectedlist li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  font-size: 0.88rem;
+}
+.selectedlist__n {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+.selectedlist__title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.selectedlist--static li {
+  background: transparent;
+}
+
+.iconbtn--sm {
+  width: 26px;
+  height: 26px;
+}
+
+.btn--disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: auto;
+}
+
+/* ============================================================
+   Save row, settings row, loading skeleton
+   ============================================================ */
+
+.saverow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.saverow__note {
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.saverow__note--err {
+  color: var(--err);
+}
+
+.settingrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.settingrow__label {
+  margin: 0 0 0.2rem;
+  font-weight: 650;
+  font-size: 0.95rem;
+}
+.settingrow__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  max-width: 28rem;
+}
+.settingrow__control {
+  flex: 1 1 16rem;
+  max-width: 22rem;
+}
+
+.skeleton {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  padding: 1.1rem;
+  margin-bottom: 0.8rem;
+}
+.skeleton__line {
+  height: 0.7rem;
+  border-radius: 999px;
+  background: var(--panel-3);
+  margin-bottom: 0.6rem;
+  width: 60%;
+}
+.skeleton__line--title {
+  height: 1rem;
+  width: 40%;
+}
+.skeleton__line:last-child {
+  margin-bottom: 0;
+}
+
+.results__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+@media (max-width: 640px) {
+  .results__actions {
+    align-items: flex-start;
+  }
 }

@@ -25,6 +25,8 @@ from pydantic import BaseModel
 
 from src import __version__
 from src.api.analyze import router as analyze_router
+from src.api.papers import router as papers_router
+from src.api.reviews import router as reviews_router
 from src.config import Settings, get_settings
 
 # ---------------------------------------------------------------------------
@@ -42,6 +44,10 @@ class HealthResponse(BaseModel):
     app_name: str
     version: str
     environment: str
+    # Whether durable storage is configured. Reported so the interface can
+    # tell "you have no saved papers" apart from "there is nowhere to save
+    # them", which are different things and need different wording.
+    library: bool
 
 
 class RootResponse(BaseModel):
@@ -85,9 +91,11 @@ app.add_middleware(
 )
 
 
-# The analysis API. Kept in its own module so this file stays a wiring file
-# rather than growing into the application.
+# The API. Each router is kept in its own module so this file stays a wiring
+# file rather than growing into the application.
 app.include_router(analyze_router)
+app.include_router(papers_router)
+app.include_router(reviews_router)
 
 
 # ---------------------------------------------------------------------------
@@ -119,4 +127,8 @@ def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
         app_name=settings.app_name,
         version=__version__,
         environment=settings.app_env,
+        # A boolean, never the URL and never the key. Whether a database is
+        # configured is safe to publish; where it lives and how to reach it
+        # is not.
+        library=settings.has_database,
     )

@@ -1,31 +1,35 @@
 "use client";
 
 /**
- * Settings / About.
+ * Settings and About.
  *
- * Read-only by design: everything that configures ResearchForge is a
- * server-side environment variable, and the browser must never be able to see
- * or change it. Nothing here renders a key, a token, or a variable's value -
- * only the provider's NAME, which is public information.
+ * Appearance is the only thing that can be changed here, because everything
+ * else that configures ResearchForge is a server-side environment variable and
+ * the browser must not be able to see or alter it.
  *
- * The version and environment shown come from the live /health response, so
- * this page reports the deployment that is actually answering rather than a
- * constant compiled into the bundle.
+ * Nothing on this page renders a key, a token, or a variable's value. Only the
+ * provider's NAME, which is public information. A masked key is not a safe
+ * compromise: it still confirms which key is configured.
  */
 
 import Image from "next/image";
 
 import BackendStatus from "@/components/BackendStatus";
 import { IconInfo } from "@/components/Icons";
+import ThemeToggle from "@/components/ThemeToggle";
 import { API_BASE_LABEL } from "@/lib/api";
 import { useSession } from "@/lib/session";
+import { useTheme } from "@/lib/theme";
 
 export default function SettingsPage() {
   const { health } = useSession();
+  const { choice, resolved } = useTheme();
 
-  const version = health.kind === "ok" ? health.data.version : "Not available";
-  const environment = health.kind === "ok" ? health.data.environment : "Not available";
-  const appName = health.kind === "ok" ? health.data.app_name : "ResearchForge";
+  const ok = health.kind === "ok";
+  const version = ok ? health.data.version : "Not available";
+  const environment = ok ? health.data.environment : "Not available";
+  const appName = ok ? health.data.app_name : "ResearchForge";
+  const libraryConnected = ok ? Boolean(health.data.library) : false;
 
   return (
     <>
@@ -33,12 +37,40 @@ export default function SettingsPage() {
         <div>
           <h1 className="pagehead__title">Settings</h1>
           <p className="pagehead__sub">
-            Application and service information. ResearchForge is configured
-            entirely server-side; there is nothing to change from the browser.
+            Appearance and application information. Everything else is
+            configured on the server.
           </p>
         </div>
         <BackendStatus />
       </header>
+
+      <section className="section" aria-labelledby="appearance-heading">
+        <div className="section__head">
+          <h2 className="section__title" id="appearance-heading">
+            Appearance
+          </h2>
+        </div>
+        <div className="card">
+          <div className="card__body">
+            <div className="settingrow">
+              <div>
+                <p className="settingrow__label">Colour theme</p>
+                <p className="settingrow__hint">
+                  Light is the default. System follows your operating system and
+                  keeps following it if that changes.
+                </p>
+              </div>
+              <div className="settingrow__control">
+                <ThemeToggle full />
+              </div>
+            </div>
+            <p className="card__hint" style={{ marginTop: ".9rem" }}>
+              Currently showing the {resolved} theme
+              {choice === "system" ? ", following your system setting." : "."}
+            </p>
+          </div>
+        </div>
+      </section>
 
       <section className="section" aria-labelledby="about-heading">
         <div className="section__head">
@@ -48,24 +80,23 @@ export default function SettingsPage() {
         </div>
         <div className="card">
           <div className="card__body brandpanel">
-            {/* The full lockup (mark, wordmark, and tagline) belongs on an
-                identity surface like this one, not repeated through the app. */}
+            {/* The full lockup belongs on an identity surface like this one,
+                not repeated through the application. */}
             <Image
               src="/brand/researchforge-full.png"
               alt="ResearchForge. Explore, Analyze, Innovate"
               width={380}
               height={380}
               className="brandpanel__logo"
-              style={{ width: 190, height: "auto" }}
+              style={{ width: 180, height: "auto" }}
             />
             <div style={{ flex: 1, minWidth: "16rem" }}>
               <h3 style={{ margin: "0 0 .35rem", fontSize: "1.1rem" }}>
                 ResearchForge
               </h3>
               <p className="muted" style={{ margin: "0 0 .75rem" }}>
-                AI Research Assistant. Upload a research paper to generate a
-                summary, identify research gaps, and produce a literature
-                review, each grounded in the paper you provide.
+                AI Research Assistant. Upload academic papers, analyse them,
+                identify research gaps, and build literature-review insights.
               </p>
               <div className="tagrow">
                 <span className="badge badge--accent">Explore</span>
@@ -106,6 +137,10 @@ export default function SettingsPage() {
                 <dt>API location</dt>
                 <dd>{API_BASE_LABEL}</dd>
               </div>
+              <div>
+                <dt>Research library</dt>
+                <dd>{libraryConnected ? "Connected" : "Not connected"}</dd>
+              </div>
             </dl>
           </div>
         </div>
@@ -134,44 +169,16 @@ export default function SettingsPage() {
               </div>
             </dl>
 
-            {/* Deliberately no key, no masked key, and no variable values.
-                A masked key still confirms which key is configured; the
-                provider's name is the most the browser has any business
-                knowing. */}
             <div className="notice notice--info" style={{ marginTop: "1.1rem" }}>
               <IconInfo size={16} />
               <div>
                 <p>
                   <strong>Credentials are server-side only.</strong> API keys
-                  are read by the FastAPI backend from its environment and are
-                  never sent to the browser, not in full and not masked.
+                  are read by the backend from its environment and are never
+                  sent to the browser, not in full and not masked.
                 </p>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="section" aria-labelledby="scope-heading">
-        <div className="section__head">
-          <h2 className="section__title" id="scope-heading">
-            Current scope
-          </h2>
-        </div>
-        <div className="card">
-          <div className="card__body">
-            <p className="muted" style={{ marginTop: 0 }}>
-              <strong style={{ color: "var(--text)" }}>Built.</strong> PDF
-              upload, text extraction, long-paper chunking, and three grounded
-              analysis passes. Where a paper does not support a section,
-              ResearchForge says so rather than inventing content.
-            </p>
-            <p className="muted" style={{ marginBottom: 0 }}>
-              <strong style={{ color: "var(--text)" }}>Not built.</strong>{" "}
-              Saved libraries, accounts, and cross-paper literature review.
-              These need the database and retrieval milestones; analysis is
-              stateless until then.
-            </p>
           </div>
         </div>
       </section>
