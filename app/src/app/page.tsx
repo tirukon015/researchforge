@@ -16,12 +16,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ResultsView from "@/components/ResultsView";
 import {
   analyzePaper,
-  API_BASE_URL,
+  API_BASE_LABEL,
   ApiError,
   checkHealth,
   type AnalysisResponse,
   type HealthPayload,
 } from "@/lib/api";
+
+// The deployed backend is part of this same deployment, so "start it yourself"
+// is advice only a developer can act on. Showing it in production would tell a
+// visitor to fix a machine they do not have.
+const IS_LOCAL_DEV = process.env.NODE_ENV === "development";
 
 type HealthState =
   | { kind: "loading" }
@@ -134,7 +139,7 @@ export default function Home() {
           className="health"
           onClick={() => void refreshHealth()}
           disabled={health.kind === "loading"}
-          title={`Backend: ${API_BASE_URL}`}
+          title={`Backend: ${API_BASE_LABEL}`}
         >
           <span
             className={`dot ${
@@ -156,8 +161,15 @@ export default function Home() {
       {health.kind === "down" && (
         <div className="notice notice--error">
           <strong>The backend is not reachable.</strong> {health.detail} Analysis
-          is unavailable until it is running. Start it with{" "}
-          <code>uvicorn src.main:app --reload --port 8000</code>.
+          is unavailable until it responds.{" "}
+          {IS_LOCAL_DEV ? (
+            <>
+              Start it with{" "}
+              <code>uvicorn src.main:app --reload --port 8000</code>.
+            </>
+          ) : (
+            <>Try again in a moment; if it persists, the deployment needs attention.</>
+          )}
         </div>
       )}
 

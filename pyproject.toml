@@ -1,9 +1,47 @@
 # ============================================================
-# Tooling configuration for the Python backend.
+# Project metadata + tooling configuration for the Python backend.
 #
 # One file configures pytest (tests), ruff (linting/formatting),
 # and mypy (type checking) — instead of three separate config files.
 # ============================================================
+
+# ------------------------------------------------------------
+# [project] — required by the deployment build
+# ------------------------------------------------------------
+# Vercel's Python builder runs `uv`, which prefers pyproject.toml over
+# requirements.txt when both exist. Without a [project] table it fails with
+# "No `project` table found", so this section is what makes the backend
+# deployable at all.
+#
+# WHY THE DEPENDENCY LISTS DIFFER FROM requirements.txt
+#   requirements.txt = the full LOCAL development environment (server,
+#     test runner, linter, and the database drivers reserved for
+#     Milestone 2). It stays the source of truth for local setup.
+#   [project.dependencies] below = only what the deployed backend
+#     imports AT RUNTIME. uvicorn is excluded because the host supplies
+#     the server; pytest/ruff/httpx2 are development-only; psycopg,
+#     sqlalchemy and pgvector are imported nowhere yet.
+#
+# Versions here are pinned identically to requirements.txt. If you change
+# one, change both.
+[project]
+name = "researchforge"
+version = "0.1.0"
+description = "ResearchForge — AI Research Paper Assistant backend."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.141.1",
+    "pydantic-settings==2.15.0",
+    "pypdf==6.16.2",
+    "python-multipart==0.0.32",
+    "anthropic==1.2.0",
+]
+
+[tool.uv]
+# ResearchForge is an application, not an installable library. Without this,
+# uv tries to BUILD the project during dependency resolution and needs a
+# build backend it does not have.
+package = false
 
 [tool.pytest.ini_options]
 # Look for tests in tests/ and treat the project root as importable,

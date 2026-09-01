@@ -4,13 +4,40 @@
  * All network access lives here so the components stay presentational and the
  * error vocabulary is defined in exactly one place.
  *
- * The base URL comes from the environment and is never hard-coded. NEXT_PUBLIC_
- * values are inlined into the browser bundle at build time, so this must only
- * ever hold a public, non-secret value.
+ * WHERE THE BASE URL COMES FROM
+ * -----------------------------
+ * In production the frontend and the backend are one deployment: vercel.json
+ * rewrites /health and /api/* to the FastAPI service, so the API is reachable
+ * on whatever origin the page was served from. The base URL is therefore the
+ * EMPTY STRING, which makes every call a same-origin relative path.
+ *
+ * That matters beyond tidiness. Pinning the base to one absolute host makes
+ * every OTHER host a cross-origin caller, and the browser then blocks the page
+ * unless FastAPI's CORS allowlist happens to name it - which is exactly how a
+ * working *.vercel.app URL and a broken custom domain arise from one build.
+ * A relative path is correct on every domain the project will ever have.
+ *
+ * Local development is the one case where the two really are separate origins
+ * (Next on :3000, uvicorn on :8000), so that - and only that - defaults to
+ * localhost.
+ *
+ * NEXT_PUBLIC_API_BASE_URL still overrides both, for the genuinely separate
+ * deployment. NEXT_PUBLIC_ values are inlined into the browser bundle at build
+ * time, so it must only ever hold a public, non-secret value.
  */
 
+const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  configuredBaseUrl !== undefined && configuredBaseUrl !== ""
+    ? // Trailing slashes would produce `//health`, which some hosts 404.
+      configuredBaseUrl.replace(/\/+$/, "")
+    : process.env.NODE_ENV === "development"
+      ? "http://localhost:8000"
+      : "";
+
+/** How to name the backend's location in UI text and error messages. */
+export const API_BASE_LABEL = API_BASE_URL || "this site (same origin)";
 
 /* ------------------------------------------------------------------ *
  * Response types - these mirror src/schemas/analysis.py exactly.
@@ -183,7 +210,7 @@ export async function analyzePaper(
     }
     throw new ApiError(
       "offline",
-      `Could not reach the backend at ${API_BASE_URL}. It may be offline, or the request may have been blocked by CORS.`,
+      `Could not reach the backend at ${API_BASE_LABEL}. It may be offline, or the request may have been blocked by CORS.`,
     );
   }
 
