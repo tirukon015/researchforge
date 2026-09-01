@@ -28,12 +28,11 @@ export default function EmptyState({
     <div className="empty">
       {art ? (
         <Image
-          src="/brand/researchforge-mark.png"
+          src="/brand/researchforge-mark-192.png"
           alt=""
           width={56}
-          height={56}
+          height={44}
           className="empty__art"
-          style={{ width: 56, height: "auto" }}
         />
       ) : icon ? (
         <div className="empty__icon">{icon}</div>

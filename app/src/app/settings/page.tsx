@@ -83,12 +83,11 @@ export default function SettingsPage() {
             {/* The full lockup belongs on an identity surface like this one,
                 not repeated through the application. */}
             <Image
-              src="/brand/researchforge-full.png"
+              src="/brand/researchforge-full-560.png"
               alt="ResearchForge. Explore, Analyze, Innovate"
-              width={380}
-              height={380}
+              width={180}
+              height={180}
               className="brandpanel__logo"
-              style={{ width: 180, height: "auto" }}
             />
             <div style={{ flex: 1, minWidth: "16rem" }}>
               <h3 style={{ margin: "0 0 .35rem", fontSize: "1.1rem" }}>

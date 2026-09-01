@@ -62,16 +62,17 @@ export default function TopNav() {
     <header className="topnav">
       <div className="topnav__inner">
         <Link href="/" className="topnav__brand" aria-label="ResearchForge home">
-          {/* The compact transparent mark. object-fit keeps its aspect ratio
-              inside a square box rather than stretching it. */}
+          {/* The official transparent mark, pre-sized. width and height carry
+              the source's real 1420:1108 ratio rather than a square guess, so
+              the browser reserves exactly the right box and the artwork is
+              never stretched to fit it. */}
           <Image
-            src="/brand/researchforge-mark.png"
+            src="/brand/researchforge-mark-192.png"
             alt=""
-            width={30}
+            width={38}
             height={30}
             className="brandmark"
             priority
-            style={{ width: 30, height: 30 }}
           />
           <span className="topnav__wordmark">
             <span className="topnav__name">ResearchForge</span>

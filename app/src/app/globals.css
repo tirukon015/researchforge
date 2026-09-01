@@ -259,12 +259,33 @@ svg {
   text-decoration: none;
 }
 
-/* object-fit contain keeps the mark's aspect ratio inside a square box. */
+/* Sized by height so the width follows the artwork's own ratio. The width and
+   height attributes on the element already reserve this box, so the header
+   does not reflow when the image arrives. */
 .brandmark {
-  width: 30px;
   height: 30px;
-  object-fit: contain;
+  width: auto;
   flex: none;
+}
+
+/* The mark is 45% deep navy. Measured against the dark header background that
+   navy is 1.07:1, which is invisible, so on dark it is given the white plate
+   the brand's own contained variant uses. The artwork itself is untouched:
+   recolouring it would not be the official logo any more. */
+:root[data-theme="dark"] .brandmark,
+:root[data-theme="dark"] .empty__art {
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 3px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brandmark,
+  :root:not([data-theme="light"]) .empty__art {
+    background: #ffffff;
+    border-radius: 6px;
+    padding: 3px;
+  }
 }
 
 .topnav__wordmark {
@@ -955,8 +976,7 @@ svg {
 }
 .empty__art {
   width: 56px;
-  height: 56px;
-  object-fit: contain;
+  height: auto;
   opacity: 0.85;
   margin: 0 auto 0.9rem;
   display: block;
