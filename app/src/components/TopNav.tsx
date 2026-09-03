@@ -22,11 +22,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import AccountMenu from "@/components/AccountMenu";
 import ThemeToggle from "@/components/ThemeToggle";
 import { IconClose, IconMenu } from "@/components/Icons";
 
 const NAV = [
-  { href: "/", label: "Dashboard" },
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/papers", label: "My Papers" },
   { href: "/literature-review", label: "Literature Review" },
   { href: "/workspace", label: "Workspace" },
@@ -34,9 +35,11 @@ const NAV = [
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
-  // "/" must match exactly or it lights up on every route. Everything else
-  // matches its subtree, so /papers/abc keeps "My Papers" marked.
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  // Every destination matches its subtree, so /papers/abc keeps "My Papers"
+  // marked. No exact-match special case is needed now that the dashboard lives
+  // at /dashboard rather than at "/" - "/" is the public landing page, and this
+  // header is never rendered there.
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export default function TopNav() {
@@ -61,7 +64,7 @@ export default function TopNav() {
   return (
     <header className="topnav">
       <div className="topnav__inner">
-        <Link href="/" className="topnav__brand" aria-label="ResearchForge home">
+        <Link href="/dashboard" className="topnav__brand" aria-label="ResearchForge dashboard">
           {/* The official transparent mark, pre-sized. width and height carry
               the source's real 1420:1108 ratio rather than a square guess, so
               the browser reserves exactly the right box and the artwork is
@@ -98,6 +101,7 @@ export default function TopNav() {
 
         <div className="topnav__actions">
           <ThemeToggle />
+          <AccountMenu />
           <button
             className="iconbtn topnav__menu"
             onClick={() => setOpen((v) => !v)}

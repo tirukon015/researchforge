@@ -48,6 +48,10 @@ class HealthResponse(BaseModel):
     # tell "you have no saved papers" apart from "there is nowhere to save
     # them", which are different things and need different wording.
     library: bool
+    # Whether accounts are configured. Same argument: without this the
+    # sign-in page would offer a form that cannot possibly succeed, and the
+    # failure would read as "wrong password" rather than "not set up here".
+    auth: bool
 
 
 class RootResponse(BaseModel):
@@ -138,4 +142,5 @@ def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
         # configured is safe to publish; where it lives and how to reach it
         # is not.
         library=settings.has_database,
+        auth=settings.has_auth,
     )

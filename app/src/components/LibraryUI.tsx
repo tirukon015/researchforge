@@ -42,7 +42,7 @@ export function LibraryUnavailable({ detail }: { detail?: string }) {
         art
         title="The research library is not connected"
         actions={
-          <Link href="/" className="btn btn--primary">
+          <Link href="/dashboard" className="btn btn--primary">
             Analyse a paper
           </Link>
         }
@@ -275,7 +275,7 @@ export function EmptyLibrary({ filtered }: { filtered: boolean }) {
         art
         title="Your research library is empty"
         actions={
-          <Link href="/" className="btn btn--primary">
+          <Link href="/dashboard" className="btn btn--primary">
             Upload your first paper
           </Link>
         }

@@ -1,22 +1,24 @@
 # Database
 
-## Status: connected, but configured with the wrong key type
+## Status: connected, with per-user isolation enforced by the database
 
-**The database exists and the schema is live.** A Supabase project is
-provisioned, both migrations have been applied, and the backend reaches
-PostgREST successfully. Persistence is nonetheless unavailable in production
-for one reason: `SUPABASE_SERVICE_ROLE_KEY` holds a **publishable** key.
+**The database exists, the schema is live, and every row now has an owner.** A
+Supabase project is provisioned, migrations 001, 002 and 003 apply, and the
+backend reaches PostgREST successfully with the project's secret key present.
 
-A publishable key is the public, browser-safe one. It does not bypass Row Level
-Security, and section 7 of migration 002 turns RLS on with `user_id =
-auth.uid()` policies. `auth.uid()` is NULL for an anonymous key, so every
-`SELECT` succeeds with **zero rows** and every `INSERT` is refused.
+Since authentication shipped, **no data request uses the service-role key**.
+Reads and writes are made with the signed-in user's own access token, so
+Postgres evaluates `auth.uid()` and the Row Level Security policies filter the
+query. See [Row Level Security](#row-level-security) below, which is the part of
+this document worth reading first.
 
-The silent reads are the dangerous half, so `Settings.has_database` now rejects
-a publishable key outright. `/health` reports `"library": false` and the library
-routes answer `503` naming the required key type, rather than serving a
-fabricated empty library. See TROUBLESHOOTING.md for the fix, which is a
-dashboard change and needs no code or migration.
+> **Historical note.** An earlier revision of this file described a production
+> outage in which `SUPABASE_SERVICE_ROLE_KEY` held a *publishable* key. A
+> publishable key does not bypass RLS, so every `SELECT` returned zero rows and
+> the dashboard printed "0 papers" as though it were a measured fact. That key
+> has since been replaced with the project's secret key. The guard that
+> detected it (`Settings.supabase_key_is_publishable`) is still in place and is
+> still tested, because the failure was silent and worth keeping caught.
 
 ### What was checked
 
@@ -25,7 +27,8 @@ Verified against the live deployment and its runtime logs, not assumed.
 | Check | Result |
 | --- | --- |
 | `SUPABASE_URL` in Vercel production | Present. A public URL, not a secret |
-| `SUPABASE_SERVICE_ROLE_KEY` in Vercel production | Present, but holds an `sb_publishable_` key. The **secret** key is required |
+| `SUPABASE_SERVICE_ROLE_KEY` in Vercel production | Present, holds the project's secret key (was an `sb_publishable_` key; see the historical note above) |
+| `SUPABASE_ANON_KEY` in Vercel production | Required since authentication shipped: it is the `apikey` header paired with each user's own token |
 | PostgREST reachable from the backend | Yes. `papers`, `analyses` and `literature_reviews` all answer `200 OK` |
 | Migrations 001 and 002 applied | Yes. Every table the code queries exists |
 | Rows visible to the configured key | None. RLS filters everything for an anonymous key |
@@ -169,19 +172,91 @@ fewer sources than it used.
 
 ## Row Level Security
 
-RLS is **enabled on every table** with no permissive policy for the anonymous
-role. A table with RLS on and no policy is closed. A table with RLS forgotten is
-readable by anyone holding the anon key, and that key ships in every browser
-bundle.
+RLS is **enabled on every table**. This is what keeps one researcher's library
+out of another's, and since migration 003 it is live rather than dormant.
 
-The backend uses the service role key, which bypasses RLS. That key never
-leaves the server.
+### How a request is authorised
 
-Migration 002 also creates per user policies (`user_id = auth.uid()`) on
-`papers`, `analyses`, `literature_reviews` and the join table. They are inert
-today: `auth.uid()` is null for the service role key, and `user_id = NULL` is
-never true, so nothing is opened up. When authentication ships, ownership is
-already enforced by the database rather than by remembering a `WHERE` clause.
+Every database request the backend makes carries two headers:
+
+| Header | Value | What it does |
+|---|---|---|
+| `apikey` | the project's **anon** (publishable) key | routes the request to this project. Grants nothing. |
+| `Authorization` | **the signed-in user's own access token** | makes Postgres resolve `auth.uid()` to that person |
+
+Because `auth.uid()` resolves to the caller, the policies from migration 002
+(`user_id = auth.uid()`) filter every read and every write. A paper belonging
+to another account is not hidden by the interface, it is **absent from the
+result set**, which is why `GET /api/papers/{someone-elses-id}` answers `404`
+and not `403`.
+
+**The service role key is no longer used for any data request.** It bypasses
+RLS, so using it would leave isolation resting on the application remembering
+to add `WHERE user_id = ...` to every query it will ever contain. One forgotten
+filter would return the whole table. Handing PostgREST the caller's own token
+instead makes a forgotten filter return *nothing*, which is the failure
+direction you want.
+
+### What migration 003 added
+
+- `user_id` now **defaults to `auth.uid()`** on `papers`, `analyses` and
+  `literature_reviews`. The owner is decided by Postgres at insert time, from
+  who asked, rather than by application code that could have a bug. The
+  `WITH CHECK (user_id = auth.uid())` policy refuses the write if the two
+  disagree, so the worst case is a failed save and never a paper filed under
+  the wrong person.
+- A **`RESTRICTIVE`** policy on `literature_review_papers` requiring the linked
+  *paper* to be the caller's, not just the review. The `RESTRICTIVE` keyword
+  matters: ordinary policies are combined with `OR`, so a second permissive
+  policy would have made the table looser. Restrictive ones are combined with
+  `AND`.
+- A policy on `chunks`, inheriting ownership from the paper. Nothing reads that
+  table yet; the policy exists so it is already governed when something does.
+
+### Rows created before authentication
+
+Rows that predate accounts have `user_id = NULL`. In SQL, `NULL = anything` is
+`NULL`, which is not `TRUE` - so those rows now match no policy and are
+invisible to every account and to the public. **They are not deleted.** They sit
+in the database, unmodified and unreachable.
+
+They are deliberately *not* assigned to the first account that registers.
+Nobody can prove who uploaded them, and handing one person's uploads to
+whoever signs up first is a data-protection failure dressed up as a
+convenience. Leaving them unreachable is reversible; guessing is not.
+
+#### Claiming pre-authentication rows
+
+Only the project owner should do this, and only for rows they know are theirs.
+Run it in the Supabase SQL Editor **after** creating an account and signing in
+once. Find the user id under **Authentication -> Users**.
+
+```sql
+-- Replace with YOUR user id from Authentication -> Users.
+-- Check first: this shows exactly what would change.
+SELECT id, title, filename, created_at
+FROM papers
+WHERE user_id IS NULL
+ORDER BY created_at;
+
+-- Then claim them. Papers, their analyses, and the reviews built from them.
+UPDATE papers             SET user_id = 'YOUR-USER-ID' WHERE user_id IS NULL;
+UPDATE analyses           SET user_id = 'YOUR-USER-ID' WHERE user_id IS NULL;
+UPDATE literature_reviews SET user_id = 'YOUR-USER-ID' WHERE user_id IS NULL;
+```
+
+This is kept out of the migration on purpose. A migration runs unattended, and
+this decision must not.
+
+### What the tests do and do not prove
+
+`tests/test_ownership.py` proves the application carries each caller's identity
+through faithfully, and `tests/test_auth.py` proves every private route refuses
+an anonymous request. Neither can exercise Postgres itself - that needs a live
+database. The migration's own verification queries (section 6 of
+`003_authentication_and_ownership.sql`) are what confirm the policies are
+actually in place, and a two-account check against the running deployment is
+what confirms the whole chain works end to end.
 
 ## Storage
 
@@ -199,10 +274,17 @@ memory, analyses it, and discards it.
 2. Confirm the project host before running anything. Never run these against an
    unrelated project.
 3. Open the SQL Editor and run `001_initial_schema.sql`, then
-   `002_analysis_and_reviews.sql`.
-4. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the backend
-   environment. See [ENVIRONMENT](ENVIRONMENT.md).
-5. Redeploy. Environment variables are read at cold start.
+   `002_analysis_and_reviews.sql`, then
+   `003_authentication_and_ownership.sql`.
+4. Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_ANON_KEY` in
+   the backend environment, and `NEXT_PUBLIC_SUPABASE_URL` and
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the frontend environment. See
+   [ENVIRONMENT](ENVIRONMENT.md).
+5. In the Supabase dashboard, under **Authentication -> URL Configuration**,
+   set the Site URL to the deployment's address and add
+   `https://<your-domain>/reset-password` to the redirect allow-list. Without
+   it, password-reset links bounce to the wrong place.
+6. Redeploy. Environment variables are read at cold start.
 
 ### Remaining work after that
 

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 import AppShell from "@/components/AppShell";
+import { AuthProvider } from "@/lib/auth";
 import { SelectionProvider } from "@/lib/library";
 import { SessionProvider } from "@/lib/session";
 import { THEME_INIT_SCRIPT, ThemeProvider } from "@/lib/theme";
@@ -13,8 +14,9 @@ export const metadata: Metadata = {
     template: "%s · ResearchForge",
   },
   description:
-    "Upload academic papers, analyse them, identify research gaps, and build " +
-    "literature-review insights.",
+    "Upload academic papers, analyse them with AI, identify research gaps, and " +
+    "build literature-review insights. Your research library stays private to " +
+    "your account.",
   applicationName: "ResearchForge",
 };
 
@@ -37,16 +39,23 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>
-          {/* Holds the analysis being worked on, so it survives navigation
-              between routes. Saved papers come from the backend, not here. */}
-          <SessionProvider>
-            {/* Which papers are ticked for a cross-paper review. Selection
-                happens on Workspace and My Papers, generating happens on
-                Literature Review, so it is shared rather than local. */}
-            <SelectionProvider>
-              <AppShell>{children}</AppShell>
-            </SelectionProvider>
-          </SessionProvider>
+          {/* Outermost of the data providers, because everything below it
+              depends on who is signed in: the session's analyses, the paper
+              selection, and every backend call the shell makes. It also
+              installs the access-token reader that src/lib/api.ts puts on each
+              request, so it has to be mounted before anything can fetch. */}
+          <AuthProvider>
+            {/* Holds the analysis being worked on, so it survives navigation
+                between routes. Saved papers come from the backend, not here. */}
+            <SessionProvider>
+              {/* Which papers are ticked for a cross-paper review. Selection
+                  happens on Workspace and My Papers, generating happens on
+                  Literature Review, so it is shared rather than local. */}
+              <SelectionProvider>
+                <AppShell>{children}</AppShell>
+              </SelectionProvider>
+            </SessionProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

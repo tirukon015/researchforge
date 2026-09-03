@@ -174,6 +174,38 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     storage_bucket: str = "papers"
 
+    # The PUBLIC key. Safe to ship in a browser and safe to log; it is listed
+    # here because the backend needs it for two things that are not writes:
+    #
+    #   1. `apikey` on every PostgREST request. PostgREST requires the header
+    #      to route the request to the project at all, and pairing it with the
+    #      caller's own JWT in `Authorization` is what makes Row Level Security
+    #      evaluate `auth.uid()` as THE SIGNED-IN USER rather than as NULL.
+    #   2. Calling GoTrue's /auth/v1/user to turn an access token into an
+    #      identity, which is how a request is authenticated.
+    #
+    # It is deliberately NOT the service-role key. Reading the library through
+    # the user's own token means the DATABASE enforces ownership; a service key
+    # bypasses RLS, which would leave isolation resting on the application
+    # remembering a WHERE clause on every query it will ever have.
+    supabase_anon_key: str = ""
+
+    @property
+    def has_auth(self) -> bool:
+        """Whether Supabase authentication is configured.
+
+        Needs the URL and the public key, and nothing else: the secret key
+        plays no part in authenticating a user. Reported separately from
+        `has_database` so a deployment missing only this says so, instead of
+        answering 401 to every request with no explanation.
+        """
+        return bool(self.supabase_url.strip() and self.supabase_anon_key.strip())
+
+    @property
+    def supabase_auth_url(self) -> str:
+        """Base URL of the GoTrue (auth) API, without a trailing slash."""
+        return f"{self.supabase_url.strip().rstrip('/')}/auth/v1"
+
     @property
     def supabase_key_is_publishable(self) -> bool:
         """Whether the configured key is a PUBLIC one in a private slot.

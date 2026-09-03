@@ -13,8 +13,48 @@ make.
 Base URL in production: `https://researchforge.rukon.dev`
 Base URL in local development: `http://localhost:8000`
 
-There is **no authentication**. Every endpoint is public. See
-[SECURITY](SECURITY.md) for what that means in practice.
+## Authentication
+
+**Every route except `GET /` and `GET /health` requires a signed-in caller.**
+
+The browser signs in with Supabase directly and receives an **access token** (a
+short-lived JWT). Every request to this API carries it:
+
+```
+Authorization: Bearer <supabase access token>
+```
+
+A request without one is refused with `401` and
+`WWW-Authenticate: Bearer`, before any work is done and before the response can
+contain anything.
+
+The token is not merely checked. It is passed on to Postgres, where
+`auth.uid()` resolves to that person and Row Level Security decides which rows
+exist at all. Two consequences worth stating plainly:
+
+- **You only ever see your own data.** Not because a `WHERE` clause was
+  remembered, but because the database will not return anybody else's rows to
+  your token.
+- **`404` covers "belongs to somebody else".** Another account's paper is
+  absent from the result set, exactly as a deleted one is, so the two are
+  indistinguishable. Answering `403` would turn the id in the URL into a way to
+  confirm which papers other people hold.
+
+`GET /health` reports `"auth": true` when accounts are configured on the
+server. See [SECURITY](SECURITY.md) and
+[DATABASE](DATABASE.md#row-level-security).
+
+### 401 response
+
+```json
+{ "detail": "You are not signed in. Please sign in and try again." }
+```
+
+or, when a token was sent but has aged out:
+
+```json
+{ "detail": "Your session has expired. Please sign in again." }
+```
 
 ---
 
@@ -61,7 +101,8 @@ an unreachable database can never make the application look down.
   "app_name": "ResearchForge",
   "version": "0.1.0",
   "environment": "production",
-  "library": false
+  "library": false,
+  "auth": false
 }
 ```
 
@@ -72,6 +113,7 @@ an unreachable database can never make the application look down.
 | `version` | The package version in `src/__init__.py`. |
 | `environment` | From `APP_ENV`, normally `development` or `production`. |
 | `library` | Whether durable storage is configured. A boolean, never the URL and never the key. |
+| `auth` | Whether accounts are configured. Lets the sign-in page say "not set up on this deployment" instead of offering a form whose every submission fails in a way that reads like a wrong password. Also a boolean, never a key. |
 
 The frontend renders this as the "Backend online" indicator, including the
 version and environment. There is no error response: if the process is not
@@ -215,8 +257,13 @@ To read them, run the backend locally and open `http://localhost:8000/docs`.
 
 ## Library routes
 
-All nine require durable storage. Without it every one returns `503`; the
-message names the situation rather than pretending the library is empty.
+All nine require **a signed-in caller** and durable storage.
+
+Without a token every one returns `401`. Without a database every one returns
+`503`; the message names the situation rather than pretending the library is
+empty. Each route operates only on the caller's own rows - see
+[Authentication](#authentication) above for why that is enforced by Postgres
+rather than by these handlers.
 
 Full request and response models are in `src/schemas/library.py`.
 

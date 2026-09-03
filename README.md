@@ -26,7 +26,8 @@
 
 ## What it does
 
-ResearchForge reads an academic PDF and produces three things:
+ResearchForge reads an academic PDF and produces three things, into a research
+library that is **private to your account**:
 
 1. **A structured summary.** Research problem, methodology, key findings,
    conclusion.
@@ -60,6 +61,9 @@ This is enforced in three places: the system prompt, the response schema's
 | Health | A live indicator reading the real `/health` endpoint. |
 | Themes | Light and dark, following the operating system preference. |
 | Responsive | Works from mobile to desktop. |
+| Landing page | A public page at `/` describing the product. No account needed to read it. |
+| Accounts | Email and password, through Supabase Auth. Sign up, sign in, forgot password, reset password. Passwords never reach the ResearchForge database. |
+| Private libraries | Every paper, analysis and review belongs to one account. Enforced by Postgres Row Level Security, not by the interface. |
 
 ## Technology
 
@@ -151,13 +155,33 @@ GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 CORS_ALLOWED_ORIGINS=http://localhost:3000
 ```
 
+To sign in and save papers you also need a Supabase project. Backend (`.env`):
+
+```
+SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
+SUPABASE_ANON_KEY=YOUR_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SECRET_KEY
+```
+
+Frontend (`app/.env.local`):
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
+```
+
+The two `NEXT_PUBLIC_` values are public by design and are compiled into the
+browser bundle. The **service role key must never** be given a `NEXT_PUBLIC_`
+prefix: it bypasses Row Level Security, and in a browser bundle it would hand
+every user's library to anyone who read the page source.
+
 Every variable is documented in [ENVIRONMENT](docs/ENVIRONMENT.md). Secrets are
 server side only and never reach the browser.
 
 ## Testing
 
 ```bash
-pytest                     # 231 tests, fully offline, no API key required
+pytest                     # 333 tests, fully offline, no API key required
 ruff check src tests       # lint
 cd app && npm run build && npm run typecheck
 ```
@@ -188,25 +212,35 @@ reasoning with no code change.
 Both providers sit behind `src/rag/llm/base.py`, so switching vendors is one
 environment variable and adding one is a single new file.
 
-## Database
+## Database and data isolation
 
-**Not connected.** No Supabase project is configured and nothing is persisted.
+**Connected, with ownership enforced by Postgres.** Three additive migrations
+build the schema; migration 003 is the one that makes each account's library
+private.
 
-What exists: two additive migrations, a storage independent repository
-interface, a Supabase implementation, and the request and response models.
-What is missing: a Supabase project, its credentials, and the API routes that
-would use them. See [DATABASE](docs/DATABASE.md).
+The mechanism, in one paragraph: the browser signs in with Supabase and gets an
+access token. It sends that token to the FastAPI backend, which passes it
+straight through to Postgres. Postgres resolves `auth.uid()` to that person, and
+the Row Level Security policies (`user_id = auth.uid()`) decide which rows exist
+at all. The service-role key, which would bypass all of that, is used for **no
+data request**. The consequence is that a forgotten `WHERE` clause returns
+nothing rather than everything, and changing an id in a URL reaches a `404`.
+
+See [DATABASE](docs/DATABASE.md#row-level-security).
 
 ## Known limitations
 
-1. **Nothing is saved.** Reloading the tab discards the analysis.
-2. **The free AI tier is small.** One analysis costs three provider requests, so
+1. **The free AI tier is small.** One analysis costs three provider requests, so
    the daily allowance runs out quickly.
-3. **No OCR.** Scanned papers have no text layer and are rejected.
-4. **Single paper scope.** The literature review covers the prior work one paper
+2. **No OCR.** Scanned papers have no text layer and are rejected.
+3. **Single paper scope.** The literature review covers the prior work one paper
    discusses. It does not search a corpus, and the interface says so.
-5. **No authentication and no rate limiting.** Acceptable only while the
-   application stores nothing.
+4. **No rate limiting of our own.** Analysis is behind sign-in, so it cannot be
+   spent anonymously, but a signed-in account is not throttled beyond whatever
+   the model provider imposes.
+5. **Rows created before accounts existed are unreachable.** They are preserved,
+   not deleted, and are deliberately not assigned to an owner nobody can prove.
+   See [DATABASE](docs/DATABASE.md#claiming-pre-authentication-rows).
 
 ## Documentation
 

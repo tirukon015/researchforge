@@ -269,7 +269,7 @@ export default function LiteratureReviewPage() {
                   From the paper you analysed in this visit.
                 </p>
               </div>
-              <Link href="/" className="btn btn--sm">
+              <Link href="/dashboard" className="btn btn--sm">
                 Open full analysis
               </Link>
             </div>
@@ -283,7 +283,7 @@ export default function LiteratureReviewPage() {
               icon={<IconReview size={28} />}
               title="No paper analysed in this visit"
               actions={
-                <Link href="/" className="btn btn--primary">
+                <Link href="/dashboard" className="btn btn--primary">
                   Analyse a paper
                 </Link>
               }

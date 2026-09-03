@@ -7,6 +7,12 @@ the user selected from their library.
 The review records which papers it was built from, and the response returns
 them. That is what lets the interface claim "based on 3 papers" and have the
 claim be checkable rather than merely asserted.
+
+EVERY ROUTE HERE IS PRIVATE. They reach the database through `get_library`,
+which requires a signed-in caller and opens the library as that person, so a
+cross-paper review can only ever be built from papers the requester owns. A
+paper belonging to somebody else is not merely refused - it is invisible, so
+`get_papers_for_review` reports it as missing exactly as it would a deleted one.
 """
 
 import logging
@@ -15,7 +21,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.api.analyze import get_provider, rate_limit_headers
-from src.api.papers import get_library
+from src.api.papers import _raise_for, get_library
 from src.config import Settings, get_settings
 from src.db import NotFoundError, PaperRepository, RepositoryError
 from src.rag.llm import (
@@ -67,9 +73,8 @@ async def create_cross_review(
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except RepositoryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
-        ) from exc
+        _raise_for(exc)
+        raise  # unreachable; keeps the type checker honest
 
     without_analysis = [p.title for p in papers if p.summary is None]
     if without_analysis:
@@ -140,9 +145,8 @@ async def list_reviews(
     try:
         reviews, total = await library.list_reviews(limit=limit)
     except RepositoryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
-        ) from exc
+        _raise_for(exc)
+        raise  # unreachable; keeps the type checker honest
     return ReviewListResponse(reviews=reviews, total=total)
 
 
@@ -161,9 +165,8 @@ async def get_review(
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except RepositoryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
-        ) from exc
+        _raise_for(exc)
+        raise  # unreachable; keeps the type checker honest
 
 
 @router.delete(
@@ -181,7 +184,6 @@ async def delete_review(
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except RepositoryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
-        ) from exc
+        _raise_for(exc)
+        raise  # unreachable; keeps the type checker honest
     return DeleteResponse(id=review_id, deleted=deleted)

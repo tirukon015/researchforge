@@ -124,7 +124,8 @@ to wait for an upload that was never eligible.
 | Name | Default | Purpose |
 | --- | --- | --- |
 | `SUPABASE_URL` | empty | Base URL of the Supabase project. |
-| `SUPABASE_SERVICE_ROLE_KEY` | empty | See Secrets above. |
+| `SUPABASE_SERVICE_ROLE_KEY` | empty | See Secrets above. No data request uses it any more; it is read to decide whether a database is configured. |
+| `SUPABASE_ANON_KEY` | empty | **Required.** Public key. Sent as `apikey` alongside each signed-in user's own access token, which is what makes Postgres apply their Row Level Security policies. Also used to verify a token against `/auth/v1/user`. Without it the library routes answer `503` rather than falling back to a key that bypasses RLS. |
 | `STORAGE_BUCKET` | `papers` | Private bucket for uploaded PDFs. |
 
 `Settings.has_database` requires **both** the URL and the key. A URL without a
@@ -137,6 +138,8 @@ timeout.
 | Name | Default | Purpose |
 | --- | --- | --- |
 | `NEXT_PUBLIC_API_BASE_URL` | see below | Absolute base URL of the backend. |
+| `NEXT_PUBLIC_SUPABASE_URL` | empty | **Required for sign-in.** The Supabase project address. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | empty | **Required for sign-in.** The publishable key. |
 
 The default is chosen by build mode in `app/src/lib/api.ts`:
 
@@ -151,6 +154,26 @@ page. Setting it to one absolute host makes every other host, including the
 custom domain and every preview URL, a cross origin caller that the CORS
 allowlist will block. That failure appears in the interface as "Backend
 offline", and it has happened once already.
+
+### The two Supabase values
+
+Unlike `NEXT_PUBLIC_API_BASE_URL`, these two **must** be set in Vercel, for
+Production *and* Preview. Without them the sign-in page says accounts are not
+configured on this deployment, which is honest but not useful.
+
+They are public on purpose. `NEXT_PUBLIC_` values are compiled into the
+JavaScript bundle and visible to anyone who opens the page, and both of these
+are safe there: the URL is a public address, and the anon key grants nothing on
+its own because every table has Row Level Security enabled - a request carrying
+only that key reads zero rows.
+
+**The service-role key must never be given a `NEXT_PUBLIC_` prefix.** It
+bypasses Row Level Security. In a browser bundle it would hand every user's
+research library to anyone who opened the page and read the source.
+
+The browser uses these for authentication only: signing in, signing out, and
+resetting a password. Papers, analyses and reviews always go through the
+FastAPI backend.
 
 ---
 

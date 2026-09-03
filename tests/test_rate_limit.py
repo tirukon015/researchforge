@@ -39,6 +39,7 @@ from src.rag.llm.gemini_provider import (
     _looks_exhausted,
     _retry_delay_from_body,
 )
+from tests.auth_fixtures import USER_A, sign_in_as
 from tests.pdf_fixtures import build_text_pdf
 from tests.test_analysis import PAPER_TEXT, FakeLLMProvider
 
@@ -434,6 +435,9 @@ def upload(client):
 
 
 def client_failing_with(error: Exception) -> TestClient:
+    # /api/analyze requires an account. These tests are about how a provider
+    # rate limit is reported, not about the door, so an identity is supplied.
+    sign_in_as(USER_A)
     app.dependency_overrides[get_provider] = lambda: FakeLLMProvider(fail_with=error)
     app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None)
     return TestClient(app)
@@ -510,6 +514,7 @@ class TestSuccessUnchanged:
         """The three passes stay three passes. Rate-limit handling was not
         allowed to quietly consolidate or reorder them."""
         fake = FakeLLMProvider()
+        sign_in_as(USER_A)
         app.dependency_overrides[get_provider] = lambda: fake
         app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None)
 

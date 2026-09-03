@@ -25,6 +25,7 @@ import math
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
+from src.api.auth import AuthUser, require_user
 from src.config import Settings, get_settings
 from src.ingestion.pdf import PdfExtractionError
 from src.rag.llm import (
@@ -91,6 +92,7 @@ def get_provider(settings: Settings = Depends(get_settings)) -> LLMProvider:
     response_model=AnalysisResponse,
     summary="Analyse a research paper",
     responses={
+        401: {"description": "Not signed in, or the session expired"},
         413: {"description": "File exceeds the upload size limit"},
         422: {"description": "The file is not a readable PDF"},
         429: {"description": "The AI provider is rate limiting or its quota is spent"},
@@ -99,12 +101,26 @@ def get_provider(settings: Settings = Depends(get_settings)) -> LLMProvider:
     },
 )
 async def analyze(
+    # ORDER MATTERS. FastAPI resolves dependencies top to bottom and stops at
+    # the first failure, so `require_user` is declared FIRST: an anonymous
+    # caller is turned away before the server reveals anything about its own
+    # configuration (a missing API key used to answer 503 here, telling a
+    # stranger which credential the deployment lacks) and before it reads a
+    # 25 MB upload it has already decided to refuse.
+    user: AuthUser = Depends(require_user),
     file: UploadFile = File(..., description="The research paper, as a PDF."),
     settings: Settings = Depends(get_settings),
     provider: LLMProvider = Depends(get_provider),
 ) -> AnalysisResponse:
     """Extract text from an uploaded paper and produce a summary, research gap
     analysis, and literature review - all grounded in the paper's own content.
+
+    Sign-in is required even though this route stores nothing. Each call is
+    three reasoning passes against a rate-limited, paid quota, and an open
+    endpoint would let anyone spend the project's allowance - which is a denial
+    of service for the people who actually have accounts. `user` is not
+    otherwise read: the result is returned to the caller and saved only if they
+    then choose to keep it.
     """
     # Read once. Size is checked against the real byte count rather than the
     # client-supplied content-length header, which cannot be trusted.
