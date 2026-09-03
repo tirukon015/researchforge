@@ -79,6 +79,17 @@ class SupabaseRepository(PaperRepository):
 
     def __init__(self, settings: Settings, timeout_seconds: float = 20.0) -> None:
         if not settings.has_database:
+            if settings.supabase_key_is_publishable:
+                # Deliberately refused rather than attempted. This key WOULD
+                # connect, and would then read zero rows through RLS forever,
+                # which looks like an empty library rather than a broken one.
+                raise RepositoryUnavailableError(
+                    "SUPABASE_SERVICE_ROLE_KEY holds a Supabase publishable "
+                    "key. That is a public browser key and cannot bypass Row "
+                    "Level Security, so it would read an empty library and "
+                    "fail every write. The project's secret server-side key "
+                    "is required."
+                )
             raise RepositoryUnavailableError(
                 "The research library is not connected. Set SUPABASE_URL and "
                 "SUPABASE_SERVICE_ROLE_KEY on the server to enable saving papers."

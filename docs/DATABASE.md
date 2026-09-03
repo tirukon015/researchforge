@@ -1,35 +1,49 @@
 # Database
 
-## Status: not connected
+## Status: connected, but configured with the wrong key type
 
-**ResearchForge is stateless today.** No database is configured, nothing is
-persisted, and an analysis is lost when the browser tab is reloaded.
+**The database exists and the schema is live.** A Supabase project is
+provisioned, both migrations have been applied, and the backend reaches
+PostgREST successfully. Persistence is nonetheless unavailable in production
+for one reason: `SUPABASE_SERVICE_ROLE_KEY` holds a **publishable** key.
 
-This is a statement about the deployment, not about the code. The schema, the
-data access layer and the API contracts are all written. What is missing is a
-Supabase project and its credentials.
+A publishable key is the public, browser-safe one. It does not bypass Row Level
+Security, and section 7 of migration 002 turns RLS on with `user_id =
+auth.uid()` policies. `auth.uid()` is NULL for an anonymous key, so every
+`SELECT` succeeds with **zero rows** and every `INSERT` is refused.
+
+The silent reads are the dangerous half, so `Settings.has_database` now rejects
+a publishable key outright. `/health` reports `"library": false` and the library
+routes answer `503` naming the required key type, rather than serving a
+fabricated empty library. See TROUBLESHOOTING.md for the fix, which is a
+dashboard change and needs no code or migration.
 
 ### What was checked
+
+Verified against the live deployment and its runtime logs, not assumed.
 
 | Check | Result |
 | --- | --- |
 | `SUPABASE_URL` in Vercel production | Present. A public URL, not a secret |
-| `SUPABASE_SERVICE_ROLE_KEY` in Vercel production | Not present |
-| The same variables in the local environment | Not present |
-| Supabase client library installed | No |
-| Supabase CLI and access token | No CLI on `PATH`, no access token |
-| Tables created anywhere | No project exists to create them in |
+| `SUPABASE_SERVICE_ROLE_KEY` in Vercel production | Present, but holds an `sb_publishable_` key. The **secret** key is required |
+| PostgREST reachable from the backend | Yes. `papers`, `analyses` and `literature_reviews` all answer `200 OK` |
+| Migrations 001 and 002 applied | Yes. Every table the code queries exists |
+| Rows visible to the configured key | None. RLS filters everything for an anonymous key |
+| Writes with the configured key | Refused, `401` |
+| The same variables in the local environment | Not present. The suite is offline and needs neither |
+| Supabase client library installed | No, and deliberately so. PostgREST is called directly over `httpx` |
+| Supabase CLI and access token | No CLI on `PATH`, no access token, so the key cannot be rotated from this environment |
 
 ### What exists in the repository
 
 | Component | Path | State |
 | --- | --- | --- |
-| Initial schema | `src/db/migrations/001_initial_schema.sql` | Written, never run |
-| Analysis and review schema | `src/db/migrations/002_analysis_and_reviews.sql` | Written, never run |
+| Initial schema | `src/db/migrations/001_initial_schema.sql` | Applied. `papers` and `chunks` exist |
+| Analysis and review schema | `src/db/migrations/002_analysis_and_reviews.sql` | Applied. `analyses`, `literature_reviews` and the join table exist |
 | Storage independent interface | `src/db/repository.py` | Complete |
 | Supabase implementation | `src/db/supabase.py` | Complete. Covered by 40 tests against a mock PostgREST. The embedded-analysis query shape is additionally verified against the live PostgREST instance; the rest is not |
 | Request and response models | `src/schemas/library.py` | Complete |
-| Settings and detection | `src/config.py`, `Settings.has_database` | Complete |
+| Settings and detection | `src/config.py`, `Settings.has_database` | Complete. Also rejects a publishable key, see status above |
 | Library API routes | `src/api/papers.py`, `src/api/reviews.py` | Wired. 7 endpoints |
 
 The application is therefore complete on this side. Supplying a live project

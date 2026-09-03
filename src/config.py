@@ -175,13 +175,47 @@ class Settings(BaseSettings):
     storage_bucket: str = "papers"
 
     @property
-    def has_database(self) -> bool:
-        """Whether durable storage is configured.
+    def supabase_key_is_publishable(self) -> bool:
+        """Whether the configured key is a PUBLIC one in a private slot.
 
-        Both halves are required: a URL without a key cannot authenticate,
-        and a key without a URL has nowhere to go. Reporting "configured"
-        on half a pair would turn a clear 503 into a confusing timeout.
+        Supabase issues two kinds of key. The publishable one
+        (`sb_publishable_...`) is designed to ship inside a browser bundle and
+        is subject to Row Level Security. The secret one (`sb_secret_...`, or a
+        legacy `service_role` JWT) bypasses RLS and is what a trusted backend
+        needs.
+
+        Putting the publishable key in this variable does not fail loudly, and
+        that is exactly why it is worth detecting. Migration 002 enables RLS
+        with `user_id = auth.uid()` policies, and `auth.uid()` is NULL for an
+        anonymous key, so:
+
+          - every SELECT succeeds with HTTP 200 and returns ZERO ROWS
+          - every INSERT is refused
+
+        The reads are the dangerous half. Nothing errors, so the dashboard
+        renders "0 papers" and "0 research gaps" as though they were measured
+        facts about an empty library, when the truth is that the server cannot
+        see its own data. A wrong number stated confidently is worse than an
+        error, so this is caught here and reported as a misconfiguration.
         """
+        return self.supabase_service_role_key.strip().startswith("sb_publishable_")
+
+    @property
+    def has_database(self) -> bool:
+        """Whether durable storage is configured AND usable.
+
+        Both halves of the pair are required: a URL without a key cannot
+        authenticate, and a key without a URL has nowhere to go. Reporting
+        "configured" on half a pair would turn a clear 503 into a confusing
+        timeout.
+
+        A publishable key counts as NOT configured. It would technically
+        connect, which is the problem: it would connect and then quietly show
+        an empty library. Refusing it means the interface says "not connected",
+        which is true, instead of "you have no papers", which is not.
+        """
+        if self.supabase_key_is_publishable:
+            return False
         return bool(self.supabase_url.strip() and self.supabase_service_role_key.strip())
 
     @property

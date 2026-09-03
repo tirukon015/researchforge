@@ -46,6 +46,23 @@ LIBRARY_UNAVAILABLE = (
     "Analysis still works, and results are available for this visit."
 )
 
+# A DIFFERENT failure from "no database", and worth its own sentence. The
+# variable is set, the connection would succeed, and the library would then
+# appear permanently empty because a publishable key cannot see past Row Level
+# Security. Naming the required key TYPE is what makes this fixable without
+# anyone having to read the source; no key value appears here or anywhere else
+# in a response.
+#
+# It leads with the CAUSE rather than repeating "not connected", because the
+# interface already prints that as a heading above this sentence, and a 503
+# already says it to anyone reading the API directly.
+LIBRARY_MISCONFIGURED = (
+    "The server is configured with a Supabase publishable key, which is a "
+    "public browser key and cannot read or write this data. "
+    "SUPABASE_SERVICE_ROLE_KEY needs the project's secret server-side key "
+    "instead. Analysis still works, and results are available for this visit."
+)
+
 
 def get_library(settings: Settings = Depends(get_settings)) -> PaperRepository:
     """Build the repository as a FastAPI dependency.
@@ -58,7 +75,12 @@ def get_library(settings: Settings = Depends(get_settings)) -> PaperRepository:
     repository = get_repository(settings)
     if repository is None:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=LIBRARY_UNAVAILABLE
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                LIBRARY_MISCONFIGURED
+                if settings.supabase_key_is_publishable
+                else LIBRARY_UNAVAILABLE
+            ),
         )
     return repository
 

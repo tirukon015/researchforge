@@ -342,11 +342,15 @@ A milestone is complete only when **all** of these are true:
   Gemini passes. This is full-document grounded generation, not RAG, and must
   not be described as RAG. `chunk_text` in the analysis service is a
   map-reduce digest for papers over 400,000 characters, not a RAG chunker.
-- **Database:** schema and the library API are built and deployed. Reads and
-  writes currently fail in production because the Vercel variable
-  `SUPABASE_SERVICE_ROLE_KEY` holds an `sb_publishable_` key, which does not
-  bypass RLS: every SELECT returns zero rows and every INSERT is refused.
-  Replacing it with the Supabase secret key is an owner action, pending.
+- **Database:** the Supabase project exists, both migrations are applied, and
+  PostgREST is reachable. Persistence is still unavailable because the Vercel
+  variable `SUPABASE_SERVICE_ROLE_KEY` holds an `sb_publishable_` key, which
+  does not bypass RLS: every SELECT returns zero rows and every INSERT is
+  refused. `Settings.has_database` now REJECTS a publishable key rather than
+  connecting with it, so `/health` reports `library: false` and the library
+  routes answer 503 naming the required key type. Without that guard the
+  dashboard printed "0 papers" as though it were a measured fact. Replacing the
+  key with the Supabase secret key is an owner action, pending.
 - **Provider rate limits:** a Gemini `429` is reported as HTTP `429` (not
   `502`), carries `Retry-After` and `X-Quota-Exhausted` when known, and is
   retried at most once and only for a short, stated delay. The SDK's own

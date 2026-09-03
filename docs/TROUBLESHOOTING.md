@@ -279,14 +279,50 @@ instead of rendering blank sections.
 
 ---
 
+## The library says "not connected" and mentions a publishable key
+
+**Cause.** `SUPABASE_SERVICE_ROLE_KEY` holds a key beginning `sb_publishable_`.
+Supabase issues two kinds of key and only one of them belongs here:
+
+| Key | Starts with | Bypasses RLS | Belongs in |
+| --- | --- | --- | --- |
+| Publishable | `sb_publishable_` | No | A browser bundle |
+| Secret | `sb_secret_` | Yes | The server, this variable |
+| Legacy service role | `eyJ...` (a JWT) | Yes | The server, still valid |
+
+**Why it is refused rather than used.** Migration 002 turns on Row Level
+Security with `user_id = auth.uid()` policies, and `auth.uid()` is NULL for a
+publishable key. Nothing errors. Every `SELECT` returns `200 OK` with **zero
+rows** and every `INSERT` is rejected. The dashboard would then print
+
+```
+Papers Analysed: 0    Research Gaps: 0    Saved Papers: 0
+```
+
+as though the library were genuinely empty. A confident wrong number is worse
+than an error, because nobody investigates a figure that looks fine. So the key
+type is checked before any request is made, `/health` reports
+`"library": false`, and the library routes answer `503` naming the required key
+type.
+
+**Fix.** Supabase Dashboard -> your project -> Project Settings -> API Keys ->
+copy the **secret** key. Then Vercel -> the `researchforge` project ->
+Settings -> Environment Variables -> edit `SUPABASE_SERVICE_ROLE_KEY` for
+Production, paste it, mark it **Sensitive**, save, and redeploy. No code change
+and no migration is needed: the RLS policies are `FOR ALL`, and a secret key
+bypasses them correctly.
+
+---
+
 ## Database connection problems
 
-There is no database to connect to. `SUPABASE_URL` and
-`SUPABASE_SERVICE_ROLE_KEY` are unset, and no endpoint uses the data layer.
+If `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are unset there is no
+database to connect to, and every library route answers `503` saying so while
+analysis continues to work.
 
-If you have connected one and the library still does not work, note that
-credentials alone are not sufficient: the library routes are not registered.
-See "Remaining work" in [DATABASE](DATABASE.md).
+If both are set and the library still does not work, check the key TYPE first
+(the section above), then `/health`: a `"library": false` there means the server
+itself considers the configuration unusable.
 
 ---
 
