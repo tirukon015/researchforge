@@ -316,14 +316,15 @@ A milestone is complete only when **all** of these are true:
 
 ## 14. Current Status
 
-- **Phase:** deployed MVP, upload → summary + research gaps + literature
-  review, end to end.
+- **Phase:** deployed MVP with **authentication and per-user research
+  libraries**, upload → summary + research gaps + literature review, end to end.
 - **Live:** <https://researchforge.rukon.dev> (also `researchforge-ten.vercel.app`)
-- **Next phase:** 2. Database Foundation (awaiting my approval)
+- **Next phase:** awaiting your decision. Migration 003 is written and pending a run in the Supabase SQL Editor.
 - **Working:** FastAPI with `/health`, `POST /api/analyze`, and the library and
   review routes; real PDF extraction (pypdf); long-paper chunking; three
   structured LLM calls; Next.js frontend with Dashboard, My Papers, Literature
-  Review, Workspace and Settings. **231/231 tests passing.**
+  Review, Workspace and Settings; accounts and private libraries.
+  **333/333 tests passing.**
 - **Verified on:** Python 3.14.7 (Windows). `requirements.txt` pins were
   authored for 3.12 and last verified on macOS 3.12.10; they install and pass
   on 3.14.7 too.
@@ -336,21 +337,35 @@ A milestone is complete only when **all** of these are true:
 - **Settled:** LLM provider (D5). Gemini active, Anthropic retained; backend
   host (D7). Vercel, same project.
 - **Locked:** embedding model (D6). Jina `jina-embeddings-v3` @ 1024 dims (see §9)
-- **Not built:** no auth, and **no embeddings and no retrieval**. Jina,
+- **Authentication (added 2026-09-04):** Supabase Auth, email + password. Public
+  landing page at `/`; the dashboard moved to `/dashboard`; sign-up, sign-in,
+  forgot-password and reset-password screens built from the existing design
+  tokens. Every route except `GET /` and `/health` requires a bearer token.
+- **Data isolation:** database requests are made AS THE SIGNED-IN USER (anon key
+  in `apikey`, that user's access token in `Authorization`), so Postgres
+  resolves `auth.uid()` and the RLS policies filter every read and write. **No
+  data request uses the service-role key any more.** A forgotten filter now
+  returns nothing rather than everything. Verified live against production with
+  two real accounts: 26/26 checks passed. Migration 003 adds
+  `user_id DEFAULT auth.uid()`, a RESTRICTIVE policy on
+  `literature_review_papers`, a `chunks` policy, and two indexes.
+- **Pre-authentication rows preserved:** the 2 papers, 2 analyses and 1 review
+  created before accounts existed keep `user_id = NULL`. They are unreachable
+  (NULL never equals `auth.uid()`) but NOT deleted, and deliberately not
+  assigned to an owner nobody can prove. See docs/DATABASE.md.
+- **Not built:** **no embeddings and no retrieval**. Jina,
   pgvector and the `chunks` table exist as scaffolding that NOTHING calls: the
   production path is PDF -> text -> full-document context -> three grounded
   Gemini passes. This is full-document grounded generation, not RAG, and must
   not be described as RAG. `chunk_text` in the analysis service is a
   map-reduce digest for papers over 400,000 characters, not a RAG chunker.
-- **Database:** the Supabase project exists, both migrations are applied, and
-  PostgREST is reachable. Persistence is still unavailable because the Vercel
-  variable `SUPABASE_SERVICE_ROLE_KEY` holds an `sb_publishable_` key, which
-  does not bypass RLS: every SELECT returns zero rows and every INSERT is
-  refused. `Settings.has_database` now REJECTS a publishable key rather than
-  connecting with it, so `/health` reports `library: false` and the library
-  routes answer 503 naming the required key type. Without that guard the
-  dashboard printed "0 papers" as though it were a measured fact. Replacing the
-  key with the Supabase secret key is an owner action, pending.
+- **Database:** connected and persisting. `SUPABASE_SERVICE_ROLE_KEY` now holds
+  the project's `sb_secret_` key (the publishable-key misconfiguration described
+  in earlier revisions of this file is fixed). `SUPABASE_ANON_KEY` was added and
+  is REQUIRED: it is the `apikey` paired with each user's own token, which is
+  what makes RLS apply. The guard that detects a publishable key in the private
+  slot is retained and still tested, because that failure was silent.
+  `/health` reports `library: true, auth: true`.
 - **Provider rate limits:** a Gemini `429` is reported as HTTP `429` (not
   `502`), carries `Retry-After` and `X-Quota-Exhausted` when known, and is
   retried at most once and only for a short, stated delay. The SDK's own

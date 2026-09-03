@@ -4,9 +4,26 @@
 
 | | |
 |---|---|
-| **Status** | Milestone 1. Environment & Foundations ✅ complete |
-| **Last updated** | 2026-08-11 |
-| **Nothing installed / no API connected / no RAG built yet** | ✅ intentional |
+| **Status** | Deployed MVP + authentication and per-user research libraries ✅ |
+| **Last updated** | 2026-09-04 |
+| **Live** | <https://researchforge.rukon.dev> |
+
+### Progress
+
+| Area | State |
+|---|---|
+| Upload → extraction → summary / gaps / literature review | ✅ live end to end |
+| Saved papers, My Papers, Workspace, cross-paper review | ✅ live, backed by Supabase |
+| **Accounts (email + password, Supabase Auth)** | ✅ sign up, sign in, forgot password, reset password |
+| **Per-user data isolation** | ✅ enforced by Postgres Row Level Security. Verified live: 26/26 checks, two real accounts |
+| **Public landing page** | ✅ at `/`; the application moved to `/dashboard` |
+| Embeddings / retrieval / RAG | ❌ not built. Scaffolding exists and nothing calls it |
+| Grounded Q&A chat (F8) | ❌ not built |
+| Export (F10) | ❌ not built |
+
+> The production path is PDF → text → full-document context → three grounded
+> Gemini passes. That is **full-document grounded generation, not RAG**, and
+> must not be described as RAG.
 
 > **How to read this document.** Sections A-D define *what* we are building.
 > Sections E-K define *how*. Sections L-P define *how we prove it works and
