@@ -1750,3 +1750,906 @@ code {
     align-items: flex-start;
   }
 }
+
+/* ============================================================
+   Accounts and the public landing page
+   ============================================================
+   Everything below is ADDITIVE. No existing rule is changed, and every
+   value here comes from the tokens declared at the top of this file, so
+   the landing page and the account screens follow the same palette,
+   radii, shadows and type scale as the application - in both themes,
+   with no second palette to keep in step.
+   ============================================================ */
+
+/* ---------- the account menu in the app header ---------- */
+
+.account {
+  position: relative;
+  flex: none;
+}
+
+.account__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem 0.25rem 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  max-width: 13rem;
+}
+.account__trigger:hover {
+  border-color: var(--accent);
+}
+
+.account__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex: none;
+}
+
+.account__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  z-index: 50;
+  min-width: 15rem;
+  max-width: min(20rem, calc(100vw - 2rem));
+  padding: 0.9rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+}
+.account__panel[hidden] {
+  display: none;
+}
+
+.account__identity {
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+.account__identityname {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.account__identitymail {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  /* The one field that says WHICH account you are in. Allowed to wrap
+     rather than be truncated - an ellipsis here defeats the purpose. */
+  overflow-wrap: anywhere;
+}
+
+.account__signout {
+  width: 100%;
+}
+
+/* ---------- the route guard's waiting state ---------- */
+
+.authgate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  min-height: 40vh;
+  text-align: center;
+}
+.authgate__text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.authgate__spinner,
+.authsubmit__spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid var(--accent-line);
+  border-top-color: var(--accent);
+  animation: rf-spin 0.8s linear infinite;
+}
+.authsubmit__spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+  border-color: rgba(255, 255, 255, 0.35);
+  border-top-color: var(--accent-fg);
+}
+
+@keyframes rf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Respects the existing reduced-motion block's intent: a reader who has
+   asked for less movement gets a static ring rather than none, so the
+   control still reads as "busy". */
+@media (prefers-reduced-motion: reduce) {
+  .authgate__spinner,
+  .authsubmit__spinner {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   Account screens: sign in, sign up, forgot, reset
+   ============================================================ */
+
+.authshell {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.authpage {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  /* A very soft wash of the brand blue behind the card. Two stops only:
+     enough to lift the card off the page, not enough to compete with it. */
+  background:
+    radial-gradient(
+      70rem 40rem at 15% -10%,
+      var(--accent-soft),
+      transparent 60%
+    ),
+    radial-gradient(
+      55rem 35rem at 100% 0%,
+      var(--accent-soft),
+      transparent 55%
+    );
+}
+
+.authpage__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  max-width: 62rem;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem;
+}
+
+.authpage__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text);
+}
+.authpage__brand:hover {
+  text-decoration: none;
+}
+.authpage__brandname {
+  font-weight: 700;
+  font-size: 1.02rem;
+  letter-spacing: -0.02em;
+}
+
+.authpage__switch {
+  margin: 0;
+  font-size: 0.87rem;
+  color: var(--muted);
+}
+
+.authpage__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem 3rem;
+}
+
+.authpage__card {
+  width: 100%;
+  max-width: 27rem;
+  padding: 2rem;
+  box-shadow: var(--shadow-lg);
+}
+
+.authpage__title {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  text-align: center;
+}
+.authpage__sub {
+  margin: 0.5rem 0 1.5rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.authpage__forgot {
+  margin: -0.35rem 0 1.1rem;
+  text-align: right;
+  font-size: 0.84rem;
+}
+
+.authpage__alt {
+  margin: 1.15rem 0 0;
+  text-align: center;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.authpage__foot {
+  margin: 0;
+  max-width: 27rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--faint);
+}
+
+/* ---------- fields ---------- */
+
+.authfield {
+  margin-bottom: 1.05rem;
+}
+
+.authfield__label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.83rem;
+  font-weight: 650;
+  color: var(--text-2);
+}
+
+.authfield__wrap {
+  display: flex;
+  align-items: center;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.authfield__wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+/* Marked by colour AND by the message beneath it, never colour alone. */
+.authfield__wrap--bad {
+  border-color: var(--err);
+}
+.authfield__wrap--bad:focus-within {
+  box-shadow: 0 0 0 3px var(--err-soft);
+}
+
+.authfield__input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.65rem 0.85rem;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  border-radius: var(--r-md);
+}
+.authfield__input:focus {
+  outline: none;
+}
+.authfield__input::placeholder {
+  color: var(--faint);
+}
+
+.authfield__reveal {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  padding: 0.3rem 0.7rem;
+  margin-right: 0.25rem;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.authfield__reveal:hover {
+  color: var(--accent);
+}
+
+.authfield__hint,
+.authfield__problem {
+  margin: 0.35rem 0 0;
+  font-size: 0.79rem;
+  line-height: 1.45;
+}
+.authfield__hint {
+  color: var(--muted);
+}
+.authfield__problem {
+  color: var(--err);
+  font-weight: 550;
+}
+
+.authsubmit {
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+/* The success notice reuses the project's status tokens rather than
+   introducing a fourth notice variant. */
+.authnotice--ok {
+  background: var(--ok-soft);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.authnotice--ok p {
+  margin: 0;
+}
+
+@media (max-width: 560px) {
+  .authpage__card {
+    padding: 1.5rem 1.25rem;
+  }
+  .authpage__head {
+    padding: 1rem;
+  }
+  .authpage__body {
+    padding: 0.5rem 1rem 2rem;
+    /* Top-aligned on a short screen so the form is not pushed below the
+       fold by vertical centring. */
+    justify-content: flex-start;
+  }
+}
+
+/* ============================================================
+   Public landing page
+   ============================================================ */
+
+.marketingmain {
+  flex: 1;
+}
+
+.marketingnav__cta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* Holds the width of the two buttons while the session is still being
+   restored, so the header does not jump when it resolves. */
+.marketingnav__placeholder {
+  display: inline-block;
+  width: 11rem;
+  height: 36px;
+}
+.marketingnav__mobilecta {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  /* The buttons move into the disclosure panel with the links, rather than
+     being crushed into a header that has already lost its nav. */
+  .marketingnav .marketingnav__cta,
+  .marketingnav .marketingnav__placeholder {
+    display: none;
+  }
+  .marketingnav__mobilecta {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--border-soft);
+  }
+  .marketingnav__mobilecta .btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* ---------- shared section rhythm ---------- */
+
+.lp-section {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem;
+}
+
+.lp-sectionhead {
+  max-width: 42rem;
+  margin: 0 auto 2rem;
+  text-align: center;
+}
+
+.lp-sectiontitle {
+  margin: 0.2rem 0 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+
+.lp-sectionsub {
+  margin: 0.7rem 0 0;
+  color: var(--muted);
+  font-size: 0.97rem;
+  line-height: 1.6;
+}
+
+.lp-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 1.1rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+/* ---------- hero ---------- */
+
+.lp-hero {
+  border-bottom: 1px solid var(--border-soft);
+  background: radial-gradient(
+    60rem 34rem at 78% -15%,
+    var(--accent-soft),
+    transparent 62%
+  );
+}
+
+.lp-hero__grid {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 4rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 3rem;
+  align-items: center;
+}
+
+.lp-hero__title {
+  margin: 0;
+  font-size: clamp(2.1rem, 5.2vw, 3.4rem);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  font-weight: 800;
+}
+.lp-hero__accent {
+  color: var(--accent);
+}
+
+.lp-hero__sub {
+  margin: 1.15rem 0 0;
+  max-width: 34rem;
+  font-size: 1.03rem;
+  line-height: 1.65;
+  color: var(--text-2);
+}
+
+.lp-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.75rem;
+}
+
+.lp-trust {
+  list-style: none;
+  margin: 2.25rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 1.1rem;
+}
+.lp-trust li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  color: var(--muted);
+}
+.lp-trust li > svg {
+  flex: none;
+  margin-top: 0.15rem;
+  color: var(--ok);
+}
+.lp-trust strong {
+  display: block;
+  font-size: 0.87rem;
+  font-weight: 650;
+  color: var(--text);
+}
+.lp-trust span {
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+/* ---------- hero visual ---------- */
+
+.hv {
+  position: relative;
+  padding-left: 1.75rem;
+  padding-top: 1.25rem;
+}
+
+.hv-source {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md);
+}
+.hv-source__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex: none;
+}
+.hv-source__meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.hv-source__label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.hv-source__note {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.hv-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.hv-panel__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--panel-2);
+}
+.hv-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  flex: none;
+}
+.hv-panel__title {
+  margin-left: 0.5rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hv-panel__body {
+  padding: 1.1rem;
+  display: grid;
+  gap: 1.15rem;
+}
+
+.hv-block__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.hv-block__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex: none;
+}
+.hv-block__icon--gaps {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.hv-block__icon--review {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.hv-block__label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.hv-lines {
+  display: grid;
+  gap: 0.42rem;
+}
+.hv-line {
+  display: block;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: var(--panel-3);
+}
+
+.hv-gap {
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--accent-line);
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+}
+.hv-gap:last-child {
+  margin-bottom: 0;
+}
+.hv-evidence {
+  display: block;
+  height: 0.36rem;
+  width: 45%;
+  margin-top: 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-line);
+}
+
+/* ---------- features ---------- */
+
+.lp-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+}
+
+.lp-feature {
+  padding: 1.5rem 1.35rem;
+}
+.lp-feature__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 1rem;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.lp-feature__title {
+  margin: 0 0 0.45rem;
+  font-size: 1.02rem;
+  letter-spacing: -0.015em;
+}
+.lp-feature__body {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* ---------- how it works ---------- */
+
+.lp-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+}
+
+.lp-step {
+  position: relative;
+  padding: 1.4rem 1.3rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+}
+.lp-step__n {
+  display: block;
+  margin-bottom: 0.7rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.lp-step__title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  letter-spacing: -0.015em;
+}
+.lp-step__body {
+  margin: 0;
+  font-size: 0.89rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* ---------- privacy ---------- */
+
+.lp-privacy {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: center;
+  padding: 2.25rem;
+}
+.lp-privacy .lp-sectiontitle {
+  font-size: clamp(1.35rem, 2.6vw, 1.75rem);
+}
+.lp-privacy .lp-sectionsub {
+  max-width: 38rem;
+}
+
+.lp-privacy__list {
+  list-style: none;
+  margin: 1.4rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.lp-privacy__list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+.lp-privacy__list li > svg {
+  flex: none;
+  margin-top: 0.2rem;
+  color: var(--ok);
+}
+
+.lp-privacy__aside {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+.lp-privacy__seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 92px;
+  height: 92px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
+}
+.lp-privacy__sealnote {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ---------- about ---------- */
+
+.lp-about {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+.lp-about__card {
+  padding: 1.5rem 1.35rem;
+}
+
+/* ---------- closing call to action ---------- */
+
+.lp-cta {
+  padding: 3rem 2rem;
+  text-align: center;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+}
+.lp-cta__title {
+  margin: 0;
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  letter-spacing: -0.03em;
+}
+.lp-cta__sub {
+  margin: 0.6rem 0 0;
+  color: var(--text-2);
+  font-size: 0.96rem;
+}
+.lp-cta__actions {
+  justify-content: center;
+}
+
+/* ---------- landing page, narrow screens ---------- */
+
+@media (max-width: 980px) {
+  /* Single column, and the visual moves BELOW the text: on a narrow screen
+     the heading and the call to action must be the first things read. */
+  .lp-hero__grid {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+    padding: 2.5rem 1.5rem 3rem;
+  }
+  .lp-privacy {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+  .lp-privacy__aside {
+    order: -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .lp-section {
+    padding: 2.5rem 1rem;
+  }
+  .lp-hero__grid {
+    padding: 2rem 1rem 2.5rem;
+  }
+  .lp-privacy {
+    padding: 1.5rem 1.25rem;
+  }
+  .lp-cta {
+    padding: 2rem 1.25rem;
+  }
+  /* Full-width call-to-action buttons: a 44px target is easier to hit than
+     a shrink-wrapped one, and there is room for nothing beside it anyway. */
+  .lp-hero__actions .btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+  .hv {
+    padding-left: 0;
+    padding-top: 2.5rem;
+  }
+}

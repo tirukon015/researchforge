@@ -11,14 +11,30 @@ costs about a hundred lines and removes a dependency from the bundle.
 httpx is already present (the Gemini SDK requires it) and is pinned
 explicitly in requirements.txt because this module imports it directly.
 
-SECURITY
---------
-Every request here is authenticated with the SERVICE-ROLE key, which
-bypasses Row Level Security. That is the correct posture for a trusted
-backend and a catastrophic one for a browser, so the key is read from
-settings, sent only in a request header, and never returned, logged, or
-included in an error message - `_translate` deliberately reports status
-codes and PostgREST's own message, never the request headers.
+SECURITY: WHO THESE REQUESTS ARE MADE AS
+----------------------------------------
+Every request here is made as **the signed-in user**, not as the server.
+The `apikey` header carries the project's public key (which only routes
+the request to the right project) and `Authorization` carries that user's
+own access token. Postgres therefore evaluates `auth.uid()` as that
+person, and the Row Level Security policies from migration 002 filter
+every read and every write.
+
+This is deliberately NOT the service-role key. A service key bypasses RLS
+entirely, which would leave user isolation resting on this file
+remembering to add `user_id = ...` to every query it will ever contain -
+one forgotten filter, one new endpoint, and User A sees User B's papers.
+Handing PostgREST the caller's token instead makes the DATABASE the thing
+that enforces ownership, so a missing filter yields nothing rather than
+everything.
+
+The practical consequence, and it is intentional: an unauthenticated
+request reads zero rows, because `user_id = auth.uid()` is never true
+when `auth.uid()` is NULL. Nothing in this codebase can opt out of that.
+
+No key and no token is ever returned, logged, or included in an error
+message - `_translate` reports status codes and PostgREST's own message,
+never the request headers.
 """
 
 import logging
@@ -29,6 +45,7 @@ import httpx
 
 from src.config import Settings
 from src.db.repository import (
+    AuthExpiredError,
     ConflictError,
     NotFoundError,
     PaperRepository,
@@ -77,7 +94,27 @@ def _parse_ts(value: Any) -> datetime:
 class SupabaseRepository(PaperRepository):
     """The research library, stored in Supabase Postgres."""
 
-    def __init__(self, settings: Settings, timeout_seconds: float = 20.0) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        access_token: str,
+        user_id: str,
+        timeout_seconds: float = 20.0,
+    ) -> None:
+        """Open the library AS ONE USER.
+
+        `access_token` is that user's Supabase JWT. It is required, with no
+        default: an optional token would make "no token" a silent, valid state
+        whose queries return an empty library rather than an error, which is
+        the exact failure mode the publishable-key guard below exists to catch.
+
+        `user_id` is the same person's id, written onto every row this
+        repository creates. Migration 003 also defaults the column to
+        `auth.uid()`, so this is belt and braces rather than the only
+        safeguard - and it is the belt, not the braces: if the two ever
+        disagreed, the `WITH CHECK (user_id = auth.uid())` policy refuses the
+        write instead of storing a row under the wrong owner.
+        """
         if not settings.has_database:
             if settings.supabase_key_is_publishable:
                 # Deliberately refused rather than attempted. This key WOULD
@@ -94,12 +131,31 @@ class SupabaseRepository(PaperRepository):
                 "The research library is not connected. Set SUPABASE_URL and "
                 "SUPABASE_SERVICE_ROLE_KEY on the server to enable saving papers."
             )
+        if not settings.supabase_anon_key.strip():
+            # The public key is what PostgREST requires in `apikey`. Without
+            # it there is no way to make a request as the user at all, and
+            # falling back to the service key would silently disable RLS -
+            # turning a configuration gap into a data leak.
+            raise RepositoryUnavailableError(
+                "The research library is not connected. SUPABASE_ANON_KEY must "
+                "be set on the server so each request can be made as the "
+                "signed-in user."
+            )
+        token = access_token.strip()
+        if not token:
+            raise RepositoryUnavailableError(
+                "The research library can only be opened for a signed-in user."
+            )
+
         self._rest = settings.supabase_rest_url
         self._timeout = timeout_seconds
-        key = settings.supabase_service_role_key.strip()
+        self._user_id = user_id.strip()
         self._headers = {
-            "apikey": key,
-            "Authorization": f"Bearer {key}",
+            # Public key: identifies the PROJECT.
+            "apikey": settings.supabase_anon_key.strip(),
+            # User token: identifies the PERSON. This is what makes
+            # auth.uid() resolve, and therefore what makes RLS filter.
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
             # Ask PostgREST to return the rows it wrote, so a save needs
             # one round trip rather than a write followed by a read.
@@ -137,10 +193,13 @@ class SupabaseRepository(PaperRepository):
             pass
 
         if response.status_code in (401, 403):
-            # Never echo the key or the header. Name the variable instead.
-            raise RepositoryUnavailableError(
-                "The research library rejected the server's credentials. "
-                "Check SUPABASE_SERVICE_ROLE_KEY."
+            # Requests are made with the USER'S token, so the overwhelmingly
+            # likely cause is that the token aged out mid-session, not that
+            # the server is misconfigured. Saying "check the server key" here
+            # would send a person to fix something they cannot see and do not
+            # own. Never echoes the key or the header either way.
+            raise AuthExpiredError(
+                "Your session has expired. Please sign in again to reach your library."
             )
         if response.status_code == 404:
             raise NotFoundError("That record was not found.")
@@ -268,6 +327,11 @@ class SupabaseRepository(PaperRepository):
             "page_count": doc.page_count,
             "extracted_characters": doc.extracted_characters,
             "status": PaperStatus.READY.value,
+            # The owner, written explicitly. Migration 003 also defaults this
+            # column to auth.uid(), and the RLS policy refuses any row where
+            # the two disagree - so a paper can only ever be stored under the
+            # person who uploaded it.
+            "user_id": self._user_id,
         }
         response = await self._request("POST", "/papers", json=paper_payload)
         rows = response.json()
@@ -277,6 +341,7 @@ class SupabaseRepository(PaperRepository):
 
         analysis_payload = {
             "paper_id": paper_id,
+            "user_id": self._user_id,
             "model_used": request.model_used,
             "summary": request.summary.model_dump(),
             "research_gaps": request.research_gaps.model_dump(),
@@ -402,6 +467,7 @@ class SupabaseRepository(PaperRepository):
             "POST",
             "/literature_reviews",
             json={
+                "user_id": self._user_id,
                 "title": title,
                 "model_used": model_used,
                 "content": content.model_dump(),

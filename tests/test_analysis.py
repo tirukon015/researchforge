@@ -19,6 +19,7 @@ from src.ingestion.pdf import PdfExtractionError, clean_text, extract_document
 from src.main import app
 from src.rag.llm.base import LLMCredentialsError, LLMProvider, LLMResponseError
 from src.schemas.analysis import LiteratureReview, ResearchGaps, Summary
+from tests.auth_fixtures import USER_A, sign_in_as
 from tests.pdf_fixtures import (
     build_empty_text_pdf,
     build_long_pdf,
@@ -113,8 +114,15 @@ class FakeLLMProvider(LLMProvider):
 
 @pytest.fixture
 def client():
-    """A TestClient whose LLM provider is the offline fake."""
+    """A TestClient whose LLM provider is the offline fake, signed in.
+
+    /api/analyze requires an account: each call is three passes against a paid,
+    rate-limited quota, so an open endpoint would let anyone spend the
+    allowance. These tests are about the analysis pipeline rather than the
+    door, so an identity is supplied; tests/test_auth.py checks the door.
+    """
     fake = FakeLLMProvider()
+    sign_in_as(USER_A)
     app.dependency_overrides[get_provider] = lambda: fake
     app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None)
     test_client = TestClient(app)
@@ -275,6 +283,7 @@ class TestAnalyzeEndpoint:
         assert _upload(client, b"").status_code == 422
 
     def test_oversized_upload_returns_413(self) -> None:
+        sign_in_as(USER_A)
         app.dependency_overrides[get_provider] = lambda: FakeLLMProvider()
         app.dependency_overrides[get_settings] = lambda: Settings(
             _env_file=None, max_upload_size_mb=1
@@ -296,7 +305,13 @@ class TestAnalyzeEndpoint:
         Parametrised over both providers because the message has to name the
         variable the operator actually needs to set - naming the other vendor's
         would send them to fix the wrong thing.
+
+        Signed in first: /api/analyze checks the caller BEFORE it checks its
+        own configuration, deliberately, so a stranger cannot learn which key
+        the deployment is missing. Reaching the 503 therefore requires an
+        account.
         """
+        sign_in_as(USER_A)
         app.dependency_overrides[get_settings] = lambda: Settings(
             _env_file=None,
             llm_provider=provider,
@@ -315,6 +330,7 @@ class TestAnalyzeEndpoint:
         broken = FakeLLMProvider(
             fail_with=LLMResponseError("output did not match the expected schema")
         )
+        sign_in_as(USER_A)
         app.dependency_overrides[get_provider] = lambda: broken
         app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None)
         try:
@@ -326,6 +342,7 @@ class TestAnalyzeEndpoint:
 
     def test_credentials_rejected_mid_flight_returns_503(self) -> None:
         bad = FakeLLMProvider(fail_with=LLMCredentialsError("key rejected"))
+        sign_in_as(USER_A)
         app.dependency_overrides[get_provider] = lambda: bad
         app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None)
         try:
@@ -345,6 +362,7 @@ class TestLongPaperHandling:
 
     def test_long_paper_is_chunked_and_digested(self) -> None:
         fake = FakeLLMProvider()
+        sign_in_as(USER_A)
         app.dependency_overrides[get_provider] = lambda: fake
         app.dependency_overrides[get_settings] = lambda: Settings(
             _env_file=None,

@@ -47,8 +47,27 @@ class RepositoryUnavailableError(RepositoryError):
     """
 
 
+class AuthExpiredError(RepositoryError):
+    """The caller's credentials were refused by the database.
+
+    Separate from `RepositoryUnavailableError` because it is neither the
+    deployment's fault nor permanent: the user's access token aged out, and
+    signing in again fixes it. The API maps this to 401 so the frontend can
+    refresh the session or send the person to the sign-in page, rather than
+    telling them the library is down.
+    """
+
+
 class NotFoundError(RepositoryError):
-    """The requested record does not exist (or is not the caller's)."""
+    """The requested record does not exist, OR IS NOT THE CALLER'S.
+
+    Deliberately one error for both cases. Row Level Security makes another
+    user's paper unreadable, so a request for it comes back with no rows,
+    exactly as a request for a deleted paper does - and this class keeps that
+    indistinguishable at the API too. Answering 403 for "exists but is not
+    yours" and 404 for "does not exist" would turn the id in the URL into a
+    probe that confirms which papers other people have.
+    """
 
 
 class ConflictError(RepositoryError):

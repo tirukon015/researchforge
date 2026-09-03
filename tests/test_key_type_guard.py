@@ -28,15 +28,30 @@ from src.db import get_repository
 from src.db.repository import RepositoryUnavailableError
 from src.db.supabase import SupabaseRepository
 from src.main import app
+from tests.auth_fixtures import USER_A, sign_in_as
 
 URL = "https://example-project.supabase.co"
 PUBLISHABLE = "sb_publishable_exampleonlynotarealkey00"
 SECRET = "sb_secret_exampleonlynotarealkey000000"
 LEGACY_JWT = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.notarealsignature"
+ANON = "sb_publishable_exampleonlynotarealanonkey"
+TOKEN = "not-a-real-access-token-for-tests-only"
+USER_ID = "11111111-1111-4111-8111-111111111111"
 
 
 def settings_with(key: str) -> Settings:
-    return Settings(_env_file=None, supabase_url=URL, supabase_service_role_key=key)
+    """Settings whose ONLY variable is the server key under test.
+
+    The public key is always present, because this file is about one specific
+    mistake - a public key in the private slot - and leaving the anon key unset
+    would fail every test for a second, unrelated reason.
+    """
+    return Settings(
+        _env_file=None,
+        supabase_url=URL,
+        supabase_service_role_key=key,
+        supabase_anon_key=ANON,
+    )
 
 
 class TestKeyTypeDetection:
@@ -66,11 +81,13 @@ class TestKeyTypeDetection:
 
 class TestRepositoryRefusesToStart:
     def test_no_repository_is_built_from_a_publishable_key(self) -> None:
-        assert get_repository(settings_with(PUBLISHABLE)) is None
+        assert (
+            get_repository(settings_with(PUBLISHABLE), access_token=TOKEN, user_id=USER_ID) is None
+        )
 
     def test_constructing_one_directly_raises_and_names_the_key_type(self) -> None:
         with pytest.raises(RepositoryUnavailableError) as raised:
-            SupabaseRepository(settings_with(PUBLISHABLE))
+            SupabaseRepository(settings_with(PUBLISHABLE), access_token=TOKEN, user_id=USER_ID)
         message = str(raised.value)
         assert "publishable" in message.lower()
         assert "secret" in message.lower()
@@ -79,7 +96,7 @@ class TestRepositoryRefusesToStart:
         """The message is shown to whoever opens the page, so it may name the
         VARIABLE and the required key type, and nothing else."""
         with pytest.raises(RepositoryUnavailableError) as raised:
-            SupabaseRepository(settings_with(PUBLISHABLE))
+            SupabaseRepository(settings_with(PUBLISHABLE), access_token=TOKEN, user_id=USER_ID)
         message = str(raised.value)
         assert PUBLISHABLE not in message
         assert URL not in message
@@ -91,6 +108,14 @@ class TestHttpBehaviour:
         app.dependency_overrides.clear()
 
     def _client(self, key: str) -> TestClient:
+        """A signed-in client.
+
+        Signed in deliberately: every assertion below is about what a
+        MISCONFIGURED SERVER tells a legitimate user. An anonymous request
+        would be refused with 401 at the door and never reach the answer this
+        file exists to pin down.
+        """
+        sign_in_as(USER_A)
         app.dependency_overrides[get_settings] = lambda: settings_with(key)
         return TestClient(app)
 

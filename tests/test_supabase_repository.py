@@ -30,6 +30,7 @@ import pytest
 
 from src.config import Settings
 from src.db.repository import (
+    AuthExpiredError,
     ConflictError,
     NotFoundError,
     RepositoryError,
@@ -41,6 +42,12 @@ from src.schemas.library import SavePaperRequest, SortOrder
 
 FAKE_URL = "https://example-project.supabase.co"
 FAKE_KEY = "not-a-real-key-for-tests-only"
+FAKE_ANON_KEY = "not-a-real-anon-key-for-tests-only"
+# The signed-in caller these tests act as. A repository is always opened for
+# one person now, so the token and the id are part of the fixture rather than
+# an optional extra.
+FAKE_TOKEN = "not-a-real-access-token-for-tests-only"
+FAKE_USER_ID = "11111111-1111-4111-8111-111111111111"
 
 
 def settings() -> Settings:
@@ -48,6 +55,7 @@ def settings() -> Settings:
         _env_file=None,
         supabase_url=FAKE_URL,
         supabase_service_role_key=FAKE_KEY,
+        supabase_anon_key=FAKE_ANON_KEY,
     )
 
 
@@ -84,7 +92,7 @@ def mock(_patch_client, handler):
 
 
 def repo() -> SupabaseRepository:
-    return SupabaseRepository(settings())
+    return SupabaseRepository(settings(), access_token=FAKE_TOKEN, user_id=FAKE_USER_ID)
 
 
 # --------------------------------------------------------------------------- #
@@ -170,25 +178,63 @@ def json_response(payload, status=200, headers=None) -> httpx.Response:
 class TestConstruction:
     def test_refuses_to_build_without_configuration(self) -> None:
         with pytest.raises(RepositoryUnavailableError) as exc:
-            SupabaseRepository(Settings(_env_file=None))
+            SupabaseRepository(
+                Settings(_env_file=None), access_token=FAKE_TOKEN, user_id=FAKE_USER_ID
+            )
         assert "SUPABASE_URL" in str(exc.value)
 
-    def test_authenticates_with_the_service_role_key_on_both_headers(self, _patch_client) -> None:
-        """PostgREST wants the key in `apikey`; PostgreSQL role selection reads
-        the bearer token. Both are required, and both must carry the key."""
+    def test_requests_are_made_as_the_user_not_as_the_server(self, _patch_client) -> None:
+        """THE test for data isolation at this layer.
+
+        `apikey` carries the PUBLIC key, which only routes the request to the
+        right project. `Authorization` carries THE USER'S OWN access token,
+        which is what makes Postgres resolve `auth.uid()` to that person and
+        apply their Row Level Security policies.
+
+        The service-role key must appear on neither header. It bypasses RLS, so
+        sending it here would silently return every user's papers to whoever
+        asked - the exact fault authentication was added to fix.
+        """
         seen = mock(_patch_client, lambda r: json_response([PAPER_ROW]))
         run(repo().get_paper("11111111-1111-1111-1111-111111111111"))
         headers = seen[0].headers
-        assert headers["apikey"] == FAKE_KEY
-        assert headers["authorization"] == f"Bearer {FAKE_KEY}"
+        assert headers["apikey"] == FAKE_ANON_KEY
+        assert headers["authorization"] == f"Bearer {FAKE_TOKEN}"
+        assert FAKE_KEY not in str(headers)
+
+    def test_refuses_to_open_without_a_user_token(self) -> None:
+        """An unscoped repository must be impossible to build.
+
+        Not merely useless: impossible. An object with no token would read
+        zero rows through RLS, which looks exactly like an empty library, and
+        the whole point of failing loudly here is that it is not one.
+        """
+        with pytest.raises(RepositoryUnavailableError) as exc:
+            SupabaseRepository(settings(), access_token="   ", user_id=FAKE_USER_ID)
+        assert "signed-in" in str(exc.value)
+
+    def test_refuses_to_open_without_the_public_key(self) -> None:
+        """Without SUPABASE_ANON_KEY there is no way to make a request as the
+        user at all. Falling back to the service key would turn a missing
+        variable into a data leak, so it is refused instead."""
+        s = Settings(
+            _env_file=None,
+            supabase_url=FAKE_URL,
+            supabase_service_role_key=FAKE_KEY,
+        )
+        with pytest.raises(RepositoryUnavailableError) as exc:
+            SupabaseRepository(s, access_token=FAKE_TOKEN, user_id=FAKE_USER_ID)
+        assert "SUPABASE_ANON_KEY" in str(exc.value)
 
     def test_a_trailing_slash_on_the_url_does_not_double_up(self) -> None:
         s = Settings(
             _env_file=None,
             supabase_url=FAKE_URL + "/",
             supabase_service_role_key=FAKE_KEY,
+            supabase_anon_key=FAKE_ANON_KEY,
         )
-        assert SupabaseRepository(s)._rest == f"{FAKE_URL}/rest/v1"
+        repository = SupabaseRepository(s, access_token=FAKE_TOKEN, user_id=FAKE_USER_ID)
+        assert repository._rest == f"{FAKE_URL}/rest/v1"
 
 
 # --------------------------------------------------------------------------- #
@@ -556,18 +602,24 @@ class TestStats:
 
 class TestFailureTranslation:
     @pytest.mark.parametrize("status", [401, 403])
-    def test_a_rejected_key_is_unavailable_and_never_echoes_the_key(
-        self, _patch_client, status
-    ) -> None:
+    def test_a_refused_credential_reads_as_an_expired_session(self, _patch_client, status) -> None:
+        """Requests are made with the USER'S token, so a 401 from PostgREST
+        means their session aged out - not that the server is misconfigured.
+        Telling them to check a server key would send them to fix something
+        they cannot see. The API maps this to 401 and the frontend re-signs in.
+        """
         mock(
             _patch_client,
             lambda r: json_response({"message": "bad key", "code": "PGRST301"}, status),
         )
-        with pytest.raises(RepositoryUnavailableError) as exc:
+        with pytest.raises(AuthExpiredError) as exc:
             run(repo().get_paper("abc"))
         message = str(exc.value)
-        assert "SUPABASE_SERVICE_ROLE_KEY" in message
+        assert "sign in again" in message.lower()
+        # No credential of any kind may reach a message a person will read.
         assert FAKE_KEY not in message
+        assert FAKE_TOKEN not in message
+        assert FAKE_ANON_KEY not in message
 
     def test_a_server_error_is_unavailable(self, _patch_client) -> None:
         mock(_patch_client, lambda r: httpx.Response(500, text="upstream down"))

@@ -1,13 +1,28 @@
 """The research library: save, list, open and delete papers.
 
+EVERY ROUTE HERE IS PRIVATE
+---------------------------
+`get_library` depends on `require_user`, so there is no way to reach a paper
+without a valid Supabase access token, and the repository it returns talks to
+Postgres AS THAT USER. Ownership is therefore enforced by Row Level Security in
+the database, not by a `WHERE user_id = ...` this module has to remember to
+write. A new endpoint added below inherits the isolation automatically; one
+that forgot to filter would return nothing rather than everything.
+
 ERROR MAPPING
 -------------
 Status codes are chosen so the frontend can tell the cases apart without
 parsing message text, the same contract `analyze.py` follows:
 
-    404  the paper is not in the library
+    401  not signed in, or the session expired
+    404  the paper is not in the library, OR belongs to someone else
     409  deleting it would break a saved literature review
     503  the library is not connected, or could not be reached
+
+404 covering "someone else's paper" is deliberate. RLS makes another user's row
+unreadable, so the request comes back empty exactly as it would for a paper that
+never existed - and answering 403 instead would turn the id in the URL into a
+tool for confirming which papers other people hold.
 
 503 rather than an empty list is the important one. An empty list is a claim
 ("you have no papers"), and a deployment with no database is not in a position
@@ -18,8 +33,10 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from src.api.auth import AuthUser, require_user
 from src.config import Settings, get_settings
 from src.db import (
+    AuthExpiredError,
     ConflictError,
     NotFoundError,
     PaperRepository,
@@ -64,15 +81,23 @@ LIBRARY_MISCONFIGURED = (
 )
 
 
-def get_library(settings: Settings = Depends(get_settings)) -> PaperRepository:
-    """Build the repository as a FastAPI dependency.
+def get_library(
+    user: AuthUser = Depends(require_user),
+    settings: Settings = Depends(get_settings),
+) -> PaperRepository:
+    """Build the repository as a FastAPI dependency, SCOPED TO THE CALLER.
+
+    `require_user` runs first, so an unauthenticated request never reaches a
+    repository at all - it is refused with 401 before any database work starts.
+    The user's own access token is then handed to the repository, which is what
+    makes Postgres apply that person's Row Level Security policies.
 
     Being a dependency rather than a module-level object is what makes the
     endpoints testable: the suite overrides this with an in-memory fake, so no
     test needs a database. It is also what lets an unconfigured deployment
     answer 503 instead of failing at import time.
     """
-    repository = get_repository(settings)
+    repository = get_repository(settings, access_token=user.token, user_id=user.id)
     if repository is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -87,6 +112,16 @@ def get_library(settings: Settings = Depends(get_settings)) -> PaperRepository:
 
 def _raise_for(exc: RepositoryError) -> None:
     """Translate a storage error into the right HTTP status."""
+    if isinstance(exc, AuthExpiredError):
+        # Before RepositoryUnavailableError, which it does not subclass but is
+        # easily confused with: the library is fine, the credential is stale.
+        # 401 is what tells the frontend to refresh the session rather than
+        # showing "the library is down" to someone who only needs to sign in.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
     if isinstance(exc, NotFoundError):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     if isinstance(exc, ConflictError):

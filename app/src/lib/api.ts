@@ -98,6 +98,38 @@ export interface HealthPayload {
   environment: string;
   /** Whether durable storage is configured on the server. */
   library?: boolean;
+  /** Whether accounts are configured on the server. */
+  auth?: boolean;
+}
+
+/* ------------------------------------------------------------------ *
+ * Who is calling
+ * ------------------------------------------------------------------ *
+ * Every private endpoint needs the signed-in user's Supabase access token.
+ * The backend passes it straight to Postgres, where Row Level Security uses it
+ * to decide which rows exist at all - so this header is not a formality, it is
+ * the mechanism that keeps one researcher's library out of another's.
+ *
+ * It is supplied by `AuthProvider` through `setTokenReader` rather than
+ * imported, for two reasons. This module must stay usable on the server and in
+ * a test with no React tree, and the token CHANGES: it is refreshed silently in
+ * the background, so a value captured once would be the stale one. Reading
+ * through a function means every request gets whatever is current.
+ */
+
+type TokenReader = () => string | null;
+
+let readToken: TokenReader | null = null;
+
+/** Install (or, with null, remove) the source of the access token. */
+export function setTokenReader(reader: TokenReader | null): void {
+  readToken = reader;
+}
+
+/** The Authorization header for the current session, or nothing. */
+function authHeaders(): Record<string, string> {
+  const token = readToken?.() ?? null;
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 /* ------------------------------------------------------------------ *
@@ -131,7 +163,11 @@ export type ApiErrorKind =
   // which must never be shown as "you have no papers".
   | "unavailable"
   | "notfound"
-  | "conflict";
+  | "conflict"
+  // Kept apart from every other failure. It is not a fault and not something
+  // the reader did wrong: the session ended. The interface sends them to sign
+  // in again rather than showing an error beside an empty page.
+  | "unauthenticated";
 
 /** Extra facts a rate limit carries. Both are optional because the provider
  *  does not always supply them, and a missing value must stay missing rather
@@ -246,6 +282,8 @@ export async function analyzePaper(
     res = await fetch(`${API_BASE_URL}/api/analyze`, {
       method: "POST",
       body: form,
+      // No Content-Type: the browser sets the multipart boundary itself.
+      headers: authHeaders(),
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
@@ -266,6 +304,9 @@ export async function analyzePaper(
 
   if (!res.ok) {
     const detail = await readDetail(res, `The server returned HTTP ${res.status}.`);
+    if (res.status === 401) {
+      throw new ApiError("unauthenticated", detail, res.status);
+    }
     if (res.status === 413 || res.status === 422 || res.status === 415) {
       throw new ApiError("rejected", detail, res.status);
     }
@@ -398,6 +439,9 @@ async function libraryRequest<T>(
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
       ...rest,
+      // Spread after `rest` so a caller's own headers are kept, and the
+      // Authorization header can never be dropped by one that forgot it.
+      headers: { ...(rest.headers ?? {}), ...authHeaders() },
       signal: AbortSignal.timeout(timeoutMs),
       cache: "no-store",
     });
@@ -410,6 +454,7 @@ async function libraryRequest<T>(
 
   if (!res.ok) {
     const detail = await readDetail(res, `The server returned HTTP ${res.status}.`);
+    if (res.status === 401) throw new ApiError("unauthenticated", detail, res.status);
     if (res.status === 503) throw new ApiError("unavailable", detail, res.status);
     if (res.status === 404) throw new ApiError("notfound", detail, res.status);
     if (res.status === 409) throw new ApiError("conflict", detail, res.status);

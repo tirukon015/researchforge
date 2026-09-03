@@ -36,6 +36,7 @@ from src.schemas.library import (
     ReviewRecord,
     SortOrder,
 )
+from tests.auth_fixtures import USER_A, sign_in_as
 from tests.test_analysis import FakeLLMProvider
 
 # --------------------------------------------------------------------------- #
@@ -248,6 +249,11 @@ class FakeRepository(PaperRepository):
 @pytest.fixture
 def library():
     repo = FakeRepository([_detail("p1", "Attention Paper"), _detail("p2", "Bert Paper", gaps=3)])
+    # Every library route now requires a signed-in caller. These tests are
+    # about the endpoints and their status mapping, not about authentication,
+    # so an identity is supplied and the real token check is skipped.
+    # tests/test_auth.py covers what happens without one.
+    sign_in_as(USER_A)
     app.dependency_overrides[get_library] = lambda: repo
     app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None)
     app.dependency_overrides[get_provider] = lambda: FakeLLMProvider()
@@ -268,8 +274,13 @@ def client(library):
 class TestLibraryAvailability:
     def test_without_a_database_the_library_reports_503_not_an_empty_list(self) -> None:
         """An empty list is a claim: "you have no papers". A deployment with no
-        database is not in a position to make it."""
+        database is not in a position to make it.
+
+        Signed in on purpose: the point is to see the "no database" answer, and
+        an anonymous request would be turned away with 401 before reaching it.
+        """
         app.dependency_overrides.clear()
+        sign_in_as(USER_A)
         r = TestClient(app).get("/api/papers")
         assert r.status_code == 503
         assert "not connected" in r.json()["detail"]
@@ -288,6 +299,7 @@ class TestLibraryAvailability:
             "version",
             "environment",
             "library",
+            "auth",
         }
 
     def test_storage_failure_surfaces_as_503(self, client, library) -> None:
