@@ -297,7 +297,7 @@ class TestAnalyzeEndpoint:
 
     @pytest.mark.parametrize(
         ("provider", "expected_variable"),
-        [("gemini", "GEMINI_API_KEY"), ("anthropic", "ANTHROPIC_API_KEY")],
+        [("anthropic", "ANTHROPIC_API_KEY"), ("groq", "GROQ_API_KEY")],
     )
     def test_missing_credentials_returns_503(self, provider, expected_variable) -> None:
         """No API key must be a clear 503, never a 500 stack trace.
@@ -316,6 +316,7 @@ class TestAnalyzeEndpoint:
             _env_file=None,
             llm_provider=provider,
             anthropic_api_key="",
+            groq_api_key="",
             gemini_api_key="",
         )
         try:

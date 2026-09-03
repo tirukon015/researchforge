@@ -79,6 +79,10 @@ class Store:
         self.papers: dict[str, tuple[str, PaperDetail]] = {}
         self.reviews: dict[str, tuple[str, ReviewRecord]] = {}
         self.next_id = 0
+        # Global configuration is shared across users by design - that is what
+        # makes it global - so it lives on the store, not on the per-user view.
+        self.owners: set[str] = set()
+        self.active_provider: str | None = None
 
     def new_id(self, prefix: str) -> str:
         self.next_id += 1
@@ -247,6 +251,19 @@ class RlsFakeRepository(PaperRepository):
             literature_reviews=len(self._visible_reviews()),
             saved_papers=len(papers),
         )
+
+    # ---------- global configuration ----------
+    # NOT filtered by owner: this is deliberately shared state, which is
+    # exactly why only an owner may write it.
+
+    async def is_owner(self, user_id: str) -> bool:
+        return user_id in self.store.owners
+
+    async def get_active_provider(self, default: str) -> str:
+        return self.store.active_provider or default
+
+    async def set_active_provider(self, provider: str, *, updated_by: str) -> None:
+        self.store.active_provider = provider
 
 
 # --------------------------------------------------------------------------- #

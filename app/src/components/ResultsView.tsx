@@ -26,6 +26,20 @@ import type { AnalysisResponse } from "@/lib/api";
 
 type TabId = "summary" | "gaps" | "review" | "paper";
 
+/**
+ * Provider keys to the names a reader recognises.
+ *
+ * Mirrors DISPLAY_NAMES in src/rag/llm/router.py. Kept as a lookup with a
+ * fallback to the raw key so a provider added on the server later shows its
+ * key rather than blanking the badge.
+ */
+const PROVIDER_LABELS: Record<string, string> = {
+  anthropic: "Claude",
+  groq: "Groq Qwen 3.6 27B",
+  // Retired from the active workflow, but stored analyses still name it.
+  gemini: "Gemini",
+};
+
 export default function ResultsView({
   data,
   completedAt,
@@ -79,6 +93,25 @@ export default function ResultsView({
         <div className="results__actions">
           <div className="tagrow">
             {doc.truncated && <span className="badge">Truncated</span>}
+            {/* WHICH provider produced this, not which one was configured. If
+                the primary was rate limited and the other one wrote the
+                result, this names the one that actually wrote it - crediting
+                a model that never saw the paper would be a false provenance
+                record. Absent on analyses stored before this was recorded,
+                which is why it is conditional rather than defaulted. */}
+            {data.model_provider && (
+              <span className="badge badge--accent" title="Provider that produced this analysis">
+                {PROVIDER_LABELS[data.model_provider] ?? data.model_provider}
+              </span>
+            )}
+            {data.fallback_used && (
+              <span
+                className="badge"
+                title="The primary provider was unavailable, so the other one produced this analysis"
+              >
+                Fallback used
+              </span>
+            )}
             <span className="badge badge--mono" title="Model that produced this analysis">
               {data.model_used}
             </span>

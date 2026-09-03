@@ -18,12 +18,14 @@ from pydantic import BaseModel
 
 from src.config import Settings
 from src.rag.llm import get_llm_provider
+from src.rag.llm.anthropic_provider import AnthropicLLMProvider
 from src.rag.llm.base import LLMCredentialsError, LLMError, LLMResponseError
 from src.rag.llm.gemini_provider import (
-    DEFAULT_MODEL,
     GeminiLLMProvider,
     thinking_level_for_effort,
 )
+from src.rag.llm.groq_provider import DEFAULT_MODEL as GROQ_DEFAULT_MODEL
+from src.rag.llm.groq_provider import GroqLLMProvider
 
 
 class Tiny(BaseModel):
@@ -348,59 +350,102 @@ class TestErrorTranslation:
 
 
 class TestProviderSelection:
-    def test_gemini_is_selected_and_built(self) -> None:
-        p = get_llm_provider(Settings(_env_file=None, llm_provider="gemini", gemini_api_key="k"))
-        assert isinstance(p, GeminiLLMProvider)
-        assert p.model_name == DEFAULT_MODEL
+    """Which vendor gets built, and what happens when one is misconfigured.
+
+    Rewritten when Gemini was retired from the active workflow. The ACTIVE
+    providers are now `anthropic` and `groq`; the Gemini implementation is
+    still on disk (analyses produced by it are still in the database) but
+    nothing routes to it.
+    """
+
+    def test_anthropic_is_selected_and_built(self) -> None:
+        p = get_llm_provider(
+            Settings(_env_file=None, llm_provider="anthropic", anthropic_api_key="k")
+        )
+        assert isinstance(p, AnthropicLLMProvider)
+        assert p.model_name == "claude-opus-5"
+
+    def test_groq_is_selected_and_built(self) -> None:
+        p = get_llm_provider(Settings(_env_file=None, llm_provider="groq", groq_api_key="k"))
+        assert isinstance(p, GroqLLMProvider)
+        assert p.model_name == GROQ_DEFAULT_MODEL
 
     def test_selection_is_case_and_whitespace_insensitive(self) -> None:
-        p = get_llm_provider(Settings(_env_file=None, llm_provider="  Gemini ", gemini_api_key="k"))
-        assert isinstance(p, GeminiLLMProvider)
+        p = get_llm_provider(Settings(_env_file=None, llm_provider="  Groq ", groq_api_key="k"))
+        assert isinstance(p, GroqLLMProvider)
 
-    def test_missing_gemini_key_raises_credentials_error(self) -> None:
+    def test_missing_anthropic_key_raises_credentials_error(self) -> None:
         with pytest.raises(LLMCredentialsError) as exc:
-            get_llm_provider(Settings(_env_file=None, llm_provider="gemini", gemini_api_key=""))
-        assert "GEMINI_API_KEY" in str(exc.value)
+            get_llm_provider(
+                Settings(_env_file=None, llm_provider="anthropic", anthropic_api_key="")
+            )
+        assert "ANTHROPIC_API_KEY" in str(exc.value)
 
-    def test_anthropic_key_does_not_satisfy_gemini(self) -> None:
+    def test_missing_groq_key_raises_credentials_error(self) -> None:
+        with pytest.raises(LLMCredentialsError) as exc:
+            get_llm_provider(Settings(_env_file=None, llm_provider="groq", groq_api_key=""))
+        assert "GROQ_API_KEY" in str(exc.value)
+
+    def test_one_vendors_key_does_not_satisfy_the_other(self) -> None:
         """Two vendors wired up means a leftover key for the wrong one must not
         make the app look ready - the failure would surface mid-analysis."""
         settings = Settings(
             _env_file=None,
-            llm_provider="gemini",
+            llm_provider="groq",
             anthropic_api_key="left-over",
-            gemini_api_key="",
+            groq_api_key="",
         )
         assert settings.has_llm_credentials is False
         with pytest.raises(LLMCredentialsError):
             get_llm_provider(settings)
 
+    def test_gemini_is_no_longer_routable(self) -> None:
+        """Gemini is retired. Asking for it by name must FAIL rather than
+        quietly building it - a stale LLM_PROVIDER=gemini in an environment
+        should surface as a clear error, not as a silent third provider."""
+        with pytest.raises(LLMError) as exc:
+            get_llm_provider(Settings(_env_file=None, llm_provider="gemini", gemini_api_key="k"))
+        assert "anthropic" in str(exc.value) and "groq" in str(exc.value)
+
     def test_unknown_provider_lists_the_supported_ones(self) -> None:
         with pytest.raises(LLMError) as exc:
             get_llm_provider(Settings(_env_file=None, llm_provider="hal9000"))
         message = str(exc.value)
-        assert "anthropic" in message and "gemini" in message
+        assert "anthropic" in message and "groq" in message
 
     def test_model_name_from_the_other_vendor_is_ignored(self) -> None:
-        """Switching LLM_PROVIDER alone must produce a working configuration,
-        not a request for 'claude-opus-5' sent to Gemini."""
+        """Switching provider alone must produce a working configuration, not a
+        request for 'claude-opus-5' sent to Groq."""
         p = get_llm_provider(
             Settings(
                 _env_file=None,
-                llm_provider="gemini",
+                llm_provider="groq",
                 llm_model="claude-opus-5",
-                gemini_api_key="k",
+                groq_api_key="k",
             )
         )
-        assert p.model_name == DEFAULT_MODEL
+        assert p.model_name == GROQ_DEFAULT_MODEL
 
-    def test_an_explicit_gemini_model_is_honoured(self) -> None:
+    def test_an_explicit_groq_model_is_honoured(self) -> None:
         p = get_llm_provider(
             Settings(
                 _env_file=None,
-                llm_provider="gemini",
-                llm_model="gemini-2.5-pro",
-                gemini_api_key="k",
+                llm_provider="groq",
+                llm_model="qwen/qwen3.6-32b",
+                groq_api_key="k",
             )
         )
-        assert p.model_name == "gemini-2.5-pro"
+        assert p.model_name == "qwen/qwen3.6-32b"
+
+    def test_the_per_provider_model_variable_is_used(self) -> None:
+        """ANTHROPIC_MODEL and GROQ_MODEL are preferred over the shared
+        LLM_MODEL precisely because they cannot be sent to the wrong vendor."""
+        p = get_llm_provider(
+            Settings(
+                _env_file=None,
+                llm_provider="anthropic",
+                anthropic_api_key="k",
+                anthropic_model="claude-sonnet-5",
+            )
+        )
+        assert p.model_name == "claude-sonnet-5"

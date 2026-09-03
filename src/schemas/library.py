@@ -73,6 +73,15 @@ class SavePaperRequest(BaseModel):
     literature_review: LiteratureReview
     model_used: str = Field(min_length=1, max_length=200)
 
+    # Provenance, carried through from the analysis response so the stored row
+    # records which model really produced it. All optional: a client that
+    # predates these fields still saves successfully, with them left NULL,
+    # which reads as "not recorded" rather than as a guess.
+    model_provider: str | None = Field(default=None, max_length=50)
+    fallback_used: bool | None = None
+    fallback_provider: str | None = Field(default=None, max_length=50)
+    processing_time_ms: int | None = Field(default=None, ge=0)
+
 
 class CrossReviewRequest(BaseModel):
     """Generate one literature review across several saved papers."""
@@ -156,6 +165,10 @@ class PaperDetail(BaseModel):
     model_used: str | None = None
     chunk_count: int | None = None
     truncated: bool | None = None
+    model_provider: str | None = None
+    fallback_used: bool | None = None
+    fallback_provider: str | None = None
+    processing_time_ms: int | None = None
 
 
 class ReviewPaperRef(BaseModel):

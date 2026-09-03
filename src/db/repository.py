@@ -160,3 +160,30 @@ class PaperRepository(ABC):
     @abstractmethod
     async def stats(self) -> LibraryStats:
         """Real counts for the dashboard overview."""
+
+    # ---------- global configuration ----------
+    #
+    # Reads are made with the caller's own token like everything else, so the
+    # database decides what they may see and change. `set_active_provider` is
+    # refused by RLS for a non-owner even if the API layer somehow let it
+    # through - which is the point of putting the rule in the database.
+
+    @abstractmethod
+    async def is_owner(self, user_id: str) -> bool:
+        """Whether this account may change global configuration.
+
+        Never raises for "not an owner" - that is a normal answer, not an
+        error. Raises only when the question could not be asked at all.
+        """
+
+    @abstractmethod
+    async def get_active_provider(self, default: str) -> str:
+        """The globally selected primary AI provider.
+
+        `default` is returned when no row has been stored yet, so a deployment
+        works before an owner has chosen anything.
+        """
+
+    @abstractmethod
+    async def set_active_provider(self, provider: str, *, updated_by: str) -> None:
+        """Store the globally selected primary AI provider."""

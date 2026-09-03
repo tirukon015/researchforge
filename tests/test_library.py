@@ -119,6 +119,11 @@ class FakeRepository(PaperRepository):
         self.fail_with = fail_with
         self.deleted: list[str] = []
         self.saved_review_paper_ids: list[str] = []
+        # Global configuration. Empty owner set by default: a fake that made
+        # everyone an owner would let an authorisation bug pass unnoticed.
+        self.owners: set[str] = set()
+        self.active_provider: str | None = None
+        self.provider_set_by: str | None = None
 
     def _guard(self):
         if self.fail_with is not None:
@@ -244,6 +249,20 @@ class FakeRepository(PaperRepository):
             literature_reviews=len(self.reviews),
             saved_papers=len(self.papers),
         )
+
+    # ---------- global configuration ----------
+    # Present so the fake satisfies the interface. Owner behaviour has its own
+    # file, tests/test_owner.py, which drives these properly.
+
+    async def is_owner(self, user_id: str) -> bool:
+        return user_id in self.owners
+
+    async def get_active_provider(self, default: str) -> str:
+        return self.active_provider or default
+
+    async def set_active_provider(self, provider: str, *, updated_by: str) -> None:
+        self.active_provider = provider
+        self.provider_set_by = updated_by
 
 
 @pytest.fixture

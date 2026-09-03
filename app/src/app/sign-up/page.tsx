@@ -25,6 +25,7 @@ import {
   FormSuccess,
   SubmitButton,
 } from "@/components/AuthCard";
+import GoogleButton from "@/components/GoogleButton";
 import {
   MIN_PASSWORD_LENGTH,
   isValidEmail,
@@ -185,6 +186,13 @@ export default function SignUpPage() {
           Create Account
         </SubmitButton>
       </form>
+
+      {/* Same component and the same label as the sign-in page, deliberately.
+          Google sign-in creates the account if it does not exist and signs in
+          if it does, so wording it as two different actions would imply a
+          distinction the flow does not make. A Google account also arrives
+          already verified, which is why it skips the confirmation screen. */}
+      <GoogleButton onError={(m) => setError(m || null)} disabled={busy} />
 
       <p className="authpage__alt">
         Already have an account? <Link href="/sign-in">Sign in</Link>

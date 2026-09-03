@@ -89,6 +89,13 @@ export interface AnalysisResponse {
   research_gaps: ResearchGaps;
   literature_review: LiteratureReview;
   model_used: string;
+  /* Provenance: WHICH model actually produced this, not which was configured.
+     Null on an analysis stored before these fields existed - which reads as
+     "not recorded", never as a guess. */
+  model_provider?: string | null;
+  fallback_used?: boolean | null;
+  fallback_provider?: string | null;
+  processing_time_ms?: number | null;
 }
 
 export interface HealthPayload {
@@ -387,6 +394,10 @@ export interface PaperDetail {
   model_used: string | null;
   chunk_count: number | null;
   truncated: boolean | null;
+  model_provider?: string | null;
+  fallback_used?: boolean | null;
+  fallback_provider?: string | null;
+  processing_time_ms?: number | null;
 }
 
 export interface ReviewPaperRef {
@@ -427,6 +438,12 @@ export interface SavePaperInput {
   research_gaps: ResearchGaps;
   literature_review: LiteratureReview;
   model_used: string;
+  /* Carried through from the analysis so the stored row records which model
+     really produced it. */
+  model_provider?: string | null;
+  fallback_used?: boolean | null;
+  fallback_provider?: string | null;
+  processing_time_ms?: number | null;
 }
 
 /** One place that turns any library response into a value or an ApiError. */
@@ -528,6 +545,41 @@ export function createCrossReview(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ paper_ids: paperIds, ...(title ? { title } : {}) }),
     timeoutMs: 600_000,
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Owner-only AI configuration
+ * ------------------------------------------------------------------ *
+ * Mirrors src/api/owner.py. `getOwnerStatus` is callable by anyone signed
+ * in and answers a plain boolean, so the Settings page can omit the owner
+ * section without treating the ordinary case as an error. The two
+ * ai-config calls answer 403 for a non-owner, which surfaces here as an
+ * ApiError of kind "rejected".
+ */
+
+export interface AiConfig {
+  active_provider: string;
+  active_provider_label: string;
+  fallback_provider: string;
+  fallback_provider_label: string;
+  fallback_available: boolean;
+  available_providers: string[];
+}
+
+export function getOwnerStatus(): Promise<{ is_owner: boolean }> {
+  return libraryRequest<{ is_owner: boolean }>("/api/owner/status");
+}
+
+export function getAiConfig(): Promise<AiConfig> {
+  return libraryRequest<AiConfig>("/api/owner/ai-config");
+}
+
+export function setAiConfig(provider: string): Promise<AiConfig> {
+  return libraryRequest<AiConfig>("/api/owner/ai-config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider }),
   });
 }
 

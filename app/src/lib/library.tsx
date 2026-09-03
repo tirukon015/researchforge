@@ -107,6 +107,48 @@ export function useLibrary(query: LibraryQuery) {
   return { state, reload: load };
 }
 
+/**
+ * The most recently SAVED paper, with its stored analysis.
+ *
+ * Exists to fix a specific bug on the dashboard. "Recent analysis" used to
+ * read only from the in-memory session, which is cleared on reload, so a
+ * returning user saw "No analysis yet" printed directly beneath a stat card
+ * reading "Saved papers: 2". The empty state was contradicted by the number
+ * above it - and the number was the true one.
+ *
+ * Loads the newest paper and then its detail, because the list endpoint
+ * returns metadata while the dashboard needs the analysis body.
+ */
+export function useMostRecentPaper() {
+  const [state, setState] = useState<RemoteState<PaperDetail | null>>({ kind: "loading" });
+  const run = useRef(0);
+
+  const load = useCallback(async () => {
+    const id = ++run.current;
+    try {
+      const list = await listPapers({ sort: "newest", limit: 1 });
+      if (run.current !== id) return;
+      const newest = list.papers[0];
+      if (!newest) {
+        // A genuinely empty library. `null` is the honest answer and is
+        // distinct from "we could not look", which lands in the catch below.
+        setState({ kind: "ready", data: null });
+        return;
+      }
+      const detail = await getPaper(newest.id);
+      if (run.current === id) setState({ kind: "ready", data: detail });
+    } catch (error) {
+      if (run.current === id) setState(toState(error));
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { state, reload: load };
+}
+
 /** One paper with its stored analysis. */
 export function usePaper(id: string | null) {
   const [state, setState] = useState<RemoteState<PaperDetail>>({ kind: "loading" });

@@ -52,6 +52,12 @@ export default function SavePaperButton({
         research_gaps: data.research_gaps,
         literature_review: data.literature_review,
         model_used: data.model_used,
+        // Provenance travels with the save so the stored row records which
+        // model really produced it, not merely which one was configured.
+        model_provider: data.model_provider,
+        fallback_used: data.fallback_used,
+        fallback_provider: data.fallback_provider,
+        processing_time_ms: data.processing_time_ms,
       });
       setState({ kind: "saved", id: saved.id });
     } catch (error) {

@@ -19,6 +19,7 @@ import {
   FormError,
   SubmitButton,
 } from "@/components/AuthCard";
+import GoogleButton from "@/components/GoogleButton";
 import { isValidEmail, useAuth } from "@/lib/auth";
 
 /** Where to go after signing in. */
@@ -137,6 +138,10 @@ function SignInForm() {
           Sign In
         </SubmitButton>
       </form>
+
+      {/* Outside the <form>: it is a navigation, not a submission, and putting
+          it inside would make Enter in the password field ambiguous. */}
+      <GoogleButton next={destination} onError={(m) => setError(m || null)} disabled={busy} />
 
       <p className="authpage__alt">
         New to ResearchForge? <Link href="/sign-up">Create an account</Link>

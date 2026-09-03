@@ -66,6 +66,12 @@ export interface AuthValue {
 
   signUp: (input: SignUpInput) => Promise<SignUpResult>;
   signIn: (email: string, password: string) => Promise<void>;
+  /**
+   * Hand off to Google. Resolves only if the redirect FAILED to start - on
+   * success the browser has already left this page, so there is nothing to
+   * return to.
+   */
+  signInWithGoogle: (next?: string) => Promise<void>;
   signOut: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
@@ -100,6 +106,48 @@ export class AuthError extends Error {
     super(message);
     this.name = "AuthError";
   }
+}
+
+/**
+ * Where to send the user after an OAuth round trip.
+ *
+ * Kept in sessionStorage rather than in the `redirectTo` query string, on
+ * purpose. Supabase validates `redirectTo` against the project's redirect
+ * allow-list, and a URL carrying a `?next=` the operator did not anticipate is
+ * an easy way to have sign-in silently fall back to the Site URL. Keeping the
+ * destination on this origin means ONE plain URL needs allow-listing, and it
+ * cannot be tampered with by whoever crafted the link either.
+ *
+ * sessionStorage, not localStorage: it belongs to this tab and this attempt.
+ */
+const NEXT_KEY = "researchforge.auth.next";
+
+export function rememberDestination(next: string | null | undefined): void {
+  try {
+    if (next && next.startsWith("/") && !next.startsWith("//")) {
+      sessionStorage.setItem(NEXT_KEY, next);
+    } else {
+      sessionStorage.removeItem(NEXT_KEY);
+    }
+  } catch {
+    /* storage blocked; the caller falls back to the default destination */
+  }
+}
+
+export function takeDestination(fallback = "/dashboard"): string {
+  try {
+    const stored = sessionStorage.getItem(NEXT_KEY);
+    sessionStorage.removeItem(NEXT_KEY);
+    // Re-checked on the way OUT as well as in. Storage is writable by any
+    // script on this origin, and an absolute URL here would turn the callback
+    // into an open redirect.
+    if (stored && stored.startsWith("/") && !stored.startsWith("//")) {
+      return stored;
+    }
+  } catch {
+    /* storage blocked */
+  }
+  return fallback;
 }
 
 const NOT_CONFIGURED =
@@ -167,6 +215,32 @@ export function humanError(raw: unknown, fallback: string): string {
   if (text.includes("failed to fetch") || text.includes("network") || text.includes("load failed")) {
     return "Could not reach the sign-in service. Check your connection and try again.";
   }
+
+  // --- OAuth. These arrive as `error` / `error_description` on the callback
+  // URL rather than as a thrown SDK error, so they are matched on the codes
+  // Google and Supabase actually send.
+  if (text.includes("access_denied") || text.includes("user_denied")) {
+    return "Sign-in with Google was cancelled. You can try again, or use your email and password.";
+  }
+  if (text.includes("provider is not enabled") || text.includes("unsupported provider")) {
+    return "Google sign-in is not enabled for this deployment. Please use your email and password.";
+  }
+  if (text.includes("bad_oauth_state") || text.includes("invalid state")) {
+    return "That Google sign-in attempt could not be completed - it may have expired or been started in another tab. Please try again.";
+  }
+  if (text.includes("redirect_uri_mismatch") || text.includes("bad_redirect_uri")) {
+    return "Google sign-in is not configured for this address. Please use your email and password, or contact the site owner.";
+  }
+  if (text.includes("server_error") || text.includes("temporarily_unavailable")) {
+    return "Google could not complete sign-in just now. Please try again in a moment.";
+  }
+  if (
+    text.includes("email address is already registered") ||
+    text.includes("identity_already_exists")
+  ) {
+    return "An account already exists for that email address with a different sign-in method. Sign in the way you did originally.";
+  }
+
   return fallback;
 }
 
@@ -288,6 +362,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [requireClient],
   );
 
+  const signInWithGoogle = useCallback(
+    async (next?: string) => {
+      const supabase = requireClient();
+      rememberDestination(next);
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          // ONE fixed path on this origin, built from the running origin so it
+          // is correct on localhost, on every preview URL, and on the custom
+          // domain without a variable anyone has to remember to change.
+          //
+          // This exact URL must be in the Supabase project's redirect
+          // allow-list. If it is not, Supabase falls back to the Site URL and
+          // the user lands somewhere with no session and no explanation.
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        // Only reached when the redirect could not be STARTED. Once the
+        // browser navigates to Google, this function never returns.
+        rememberDestination(null);
+        throw new AuthError(
+          humanError(error, "Could not start sign-in with Google. Please try again."),
+        );
+      }
+    },
+    [requireClient],
+  );
+
   const signOut = useCallback(async () => {
     const supabase = getSupabase();
     // Clear locally first. If the network call fails, the person still ends up
@@ -351,11 +456,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: user?.email ?? "",
       signUp,
       signIn,
+      signInWithGoogle,
       signOut,
       requestPasswordReset,
       updatePassword,
     };
-  }, [state, user, signUp, signIn, signOut, requestPasswordReset, updatePassword]);
+  }, [
+    state,
+    user,
+    signUp,
+    signIn,
+    signInWithGoogle,
+    signOut,
+    requestPasswordReset,
+    updatePassword,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from src.api.auth import AuthUser, require_user
 from src.config import Settings, get_settings
+from src.db import PaperRepository, RepositoryError, get_repository
 from src.ingestion.pdf import PdfExtractionError
 from src.rag.llm import (
     LLMCredentialsError,
@@ -34,7 +35,7 @@ from src.rag.llm import (
     LLMProvider,
     LLMRateLimitError,
     LLMResponseError,
-    get_llm_provider,
+    build_routed_provider,
 )
 from src.schemas.analysis import AnalysisResponse
 from src.services.analysis import analyse_paper
@@ -65,15 +66,54 @@ def rate_limit_headers(exc: LLMRateLimitError) -> dict[str, str]:
     return headers
 
 
-def get_provider(settings: Settings = Depends(get_settings)) -> LLMProvider:
-    """Build the configured LLM provider as a FastAPI dependency.
+def get_optional_library(
+    user: AuthUser = Depends(require_user),
+    settings: Settings = Depends(get_settings),
+) -> PaperRepository | None:
+    """The library, or None when this deployment has no database.
+
+    Deliberately different from `get_library`, which answers 503. Analysis is
+    genuinely useful with nowhere to save the result, so the analysis path must
+    not require storage - it only wants to ASK storage which provider the owner
+    chose, and it has a sensible answer when there is nobody to ask.
+    """
+    if not settings.has_database:
+        return None
+    try:
+        return get_repository(settings, access_token=user.token, user_id=user.id)
+    except RepositoryError:
+        return None
+
+
+async def get_provider(
+    settings: Settings = Depends(get_settings),
+    library: PaperRepository | None = Depends(get_optional_library),
+) -> LLMProvider:
+    """Build the OWNER'S chosen provider, with the other one as fallback.
+
+    The primary comes from the database (`system_settings.active_ai_provider`),
+    so changing it is a setting rather than a redeploy. `settings.llm_provider`
+    is only the starting value for a deployment where nobody has chosen yet.
+
+    A NEW ROUTER PER REQUEST, on purpose: it remembers whether it has already
+    failed over, and that per-instance memory is what limits one analysis to a
+    single change of model (see src/rag/llm/router.py).
 
     Being a dependency rather than a direct call is what makes the endpoint
     testable: the suite overrides this with an offline fake, so no test ever
     needs a network connection or spends a token.
     """
+    active = settings.llm_provider_name
+    if library is not None:
+        try:
+            active = await library.get_active_provider(active)
+        except RepositoryError as exc:
+            # An unreadable setting must not take analysis down. Fall back to
+            # the deployment default and say so in the log, not to the user.
+            logger.warning("could not read the active AI provider: %s", exc)
+
     try:
-        return get_llm_provider(settings)
+        return build_routed_provider(active, settings)
     except LLMCredentialsError as exc:
         # A missing key is an operator problem, not the uploader's. The message
         # names the missing variable but never its value.

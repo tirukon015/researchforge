@@ -215,10 +215,14 @@ class SupabaseRepository(PaperRepository):
         raise RepositoryError(detail or "The request was rejected by the library.")
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        # A caller may override the headers wholesale (the settings upsert
+        # needs a different `Prefer`). Popping it keeps the default path
+        # allocation-free and makes the override explicit at the call site.
+        headers = kwargs.pop("headers", None) or self._headers
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 response = await client.request(
-                    method, f"{self._rest}{path}", headers=self._headers, **kwargs
+                    method, f"{self._rest}{path}", headers=headers, **kwargs
                 )
         except Exception as exc:
             raise self._translate(exc) from exc
@@ -290,6 +294,10 @@ class SupabaseRepository(PaperRepository):
             model_used=analysis.get("model_used") if analysis else None,
             chunk_count=analysis.get("chunk_count") if analysis else None,
             truncated=analysis.get("truncated") if analysis else None,
+            model_provider=analysis.get("model_provider") if analysis else None,
+            fallback_used=analysis.get("fallback_used") if analysis else None,
+            fallback_provider=analysis.get("fallback_provider") if analysis else None,
+            processing_time_ms=analysis.get("processing_time_ms") if analysis else None,
         )
 
     # PostgREST embeds the related analysis in one round trip, which is what
@@ -302,7 +310,8 @@ class SupabaseRepository(PaperRepository):
     # `_ANALYSIS_PARAMS`, which carries the ordering instead.
     _ANALYSIS_EMBED = (
         "analyses(model_used,summary,research_gaps,literature_review,"
-        "chunk_count,truncated,created_at)"
+        "chunk_count,truncated,created_at,model_provider,fallback_used,"
+        "fallback_provider,processing_time_ms)"
     )
     # Most recent analysis per paper. `limit` on an embedded resource applies
     # per parent row, so this is one analysis each, not one across the page.
@@ -348,6 +357,12 @@ class SupabaseRepository(PaperRepository):
             "literature_review": request.literature_review.model_dump(),
             "chunk_count": doc.chunk_count,
             "truncated": doc.truncated,
+            # Provenance. NULL when the client did not supply it, which is
+            # what an analysis produced before these columns existed has.
+            "model_provider": request.model_provider,
+            "fallback_used": request.fallback_used,
+            "fallback_provider": request.fallback_provider,
+            "processing_time_ms": request.processing_time_ms,
         }
         try:
             await self._request("POST", "/analyses", json=analysis_payload)
@@ -611,4 +626,57 @@ class SupabaseRepository(PaperRepository):
             research_gaps_found=gaps_found,
             literature_reviews=reviews,
             saved_papers=saved_papers,
+        )
+
+    # ---------- global configuration ----------
+
+    async def is_owner(self, user_id: str) -> bool:
+        """Whether this account is listed in `app_owners`.
+
+        The RLS policy on that table lets a user read ONLY their own row, so
+        this query returns one row or none and cannot be used to enumerate the
+        other owners.
+        """
+        response = await self._request(
+            "GET",
+            "/app_owners",
+            params={"select": "user_id", "user_id": f"eq.{user_id}", "limit": 1},
+        )
+        return bool(response.json())
+
+    async def get_active_provider(self, default: str) -> str:
+        """The stored primary provider, or `default` when none is stored."""
+        response = await self._request(
+            "GET",
+            "/system_settings",
+            params={
+                "select": "value",
+                "key": "eq.active_ai_provider",
+                "limit": 1,
+            },
+        )
+        rows = response.json()
+        if not rows:
+            return default
+        value = str(rows[0].get("value") or "").strip().lower()
+        return value or default
+
+    async def set_active_provider(self, provider: str, *, updated_by: str) -> None:
+        """Upsert the primary provider.
+
+        `resolution=merge-duplicates` makes this one round trip whether or not
+        the row already exists. The database refuses the write outright if the
+        caller is not an owner - the API layer checks too, but this is the
+        check that holds even if the API layer is wrong.
+        """
+        await self._request(
+            "POST",
+            "/system_settings",
+            headers={**self._headers, "Prefer": "resolution=merge-duplicates"},
+            json={
+                "key": "active_ai_provider",
+                "value": provider,
+                "updated_by": updated_by,
+                "updated_at": datetime.now(UTC).isoformat(),
+            },
         )

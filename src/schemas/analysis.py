@@ -131,3 +131,27 @@ class AnalysisResponse(BaseModel):
     research_gaps: ResearchGaps
     literature_review: LiteratureReview
     model_used: str = Field(description="LLM model that produced the analysis.")
+
+    # --- provenance -------------------------------------------------------
+    # WHICH model actually produced this, not which one was configured. If the
+    # primary provider failed over, these describe the provider that really
+    # wrote the result. Optional because an analysis restored from a record
+    # created before this metadata existed genuinely has none, and inventing a
+    # value would be fabricating provenance.
+    model_provider: str | None = Field(
+        default=None,
+        description="Vendor that produced this analysis (anthropic | groq).",
+    )
+    fallback_used: bool | None = Field(
+        default=None,
+        description="True when the primary provider failed and the other one produced this.",
+    )
+    fallback_provider: str | None = Field(
+        default=None,
+        description="The provider fallen back TO, when a fallback happened.",
+    )
+    processing_time_ms: int | None = Field(
+        default=None,
+        ge=0,
+        description="Measured wall-clock duration of the analysis. Never estimated.",
+    )

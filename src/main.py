@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 from src import __version__
 from src.api.analyze import router as analyze_router
+from src.api.owner import router as owner_router
 from src.api.papers import router as papers_router
 from src.api.reviews import router as reviews_router
 from src.config import Settings, get_settings
@@ -105,6 +106,7 @@ app.add_middleware(
 # The API. Each router is kept in its own module so this file stays a wiring
 # file rather than growing into the application.
 app.include_router(analyze_router)
+app.include_router(owner_router)
 app.include_router(papers_router)
 app.include_router(reviews_router)
 

@@ -9,10 +9,11 @@
  *                                  footer, because a visitor with no account
  *                                  must not be shown app navigation that
  *                                  every link of would bounce them to sign in.
- *   PUBLIC AUTH       "/sign-in"   the four account screens. No chrome at all;
- *                     "/sign-up"   they are single-purpose pages and a nav bar
- *                     "/forgot-password"   beside a password field is noise.
- *                     "/reset-password"
+ * *   PUBLIC AUTH       "/sign-in"   the account screens and the OAuth /
+ *                     "/sign-up"   confirmation landing page. No chrome at
+ *                     "/forgot-password"  all; they are single-purpose pages
+ *                     "/reset-password"   and a nav bar beside a password
+ *                     "/auth/callback"    field is noise.
  *   PRIVATE APP       everything   the existing shell - TopNav, content,
  *                     else        Footer - wrapped in `AuthGate`.
  *
@@ -47,6 +48,11 @@ const AUTH_ROUTES = [
   "/sign-up",
   "/forgot-password",
   "/reset-password",
+  // Where Google and the email-confirmation links come back to. It MUST be
+  // public: the visitor is not signed in yet when they arrive - completing the
+  // sign-in is the whole purpose of the page - so a guard here would redirect
+  // them to /sign-in and discard the one-time code they were carrying.
+  "/auth/callback",
 ] as const;
 
 export function isAuthRoute(pathname: string): boolean {

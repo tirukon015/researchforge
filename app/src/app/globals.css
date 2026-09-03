@@ -2653,3 +2653,90 @@ code {
     padding-top: 2.5rem;
   }
 }
+
+/* ---------- "or continue with" divider, and the Google button ---------- */
+
+/* A rule either side of a label. Built from a flex row rather than a
+   pseudo-element border trick so the gap stays even at every width and the
+   label can wrap on a narrow screen without the rules overlapping it. */
+.authdivider {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin: 1.25rem 0 1rem;
+  color: var(--faint);
+  font-size: 0.79rem;
+}
+.authdivider::before,
+.authdivider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Inherits .btn, so it already has the project's radius, weight and focus
+   ring. Only the things a provider button needs differently are set here. */
+.authgoogle {
+  gap: 0.6rem;
+  /* --panel rather than --panel-2: Google's guidelines ask for a plain light
+     or plain dark surface behind the mark, not a tinted one. */
+  background: var(--panel);
+  font-weight: 600;
+}
+.authgoogle:hover:not(:disabled) {
+  background: var(--panel-3);
+  /* Deliberately NOT the accent colour on hover, unlike .btn. The four-colour
+     G cannot be recoloured, so tinting the label beside it would leave the
+     control looking half-themed. */
+  color: var(--text);
+  border-color: var(--border);
+}
+.authgoogle svg {
+  flex: none;
+}
+
+/* The default spinner is white-on-accent for the primary button. This one sits
+   on a light surface, so it needs the ordinary border colours instead. */
+.authsubmit__spinner--dark {
+  border-color: var(--border);
+  border-top-color: var(--muted);
+}
+
+/* ---------- owner-only AI configuration ---------- */
+
+/* A native <select>, restyled to match .authfield__input rather than replaced
+   by a custom listbox. A custom one would need keyboard, screen-reader and
+   touch behaviour rebuilt from scratch to match what the browser already does
+   correctly for a control with two options. */
+.ownerselect {
+  width: 100%;
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.55rem 0.8rem;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+.ownerselect:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+  outline: none;
+}
+.ownerselect:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ownerfallback {
+  margin: 0;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.92rem;
+  /* A read-only fact, so it is deliberately NOT a form control: the fallback
+     is not chosen, it is whatever was not chosen. */
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+}

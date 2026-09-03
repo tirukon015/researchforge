@@ -26,7 +26,8 @@ import {
 } from "@/components/Icons";
 import ResultsView from "@/components/ResultsView";
 import UploadPanel from "@/components/UploadPanel";
-import { useLibraryStats } from "@/lib/library";
+import { useLibraryStats, useMostRecentPaper } from "@/lib/library";
+import type { AnalysisResponse, PaperDetail } from "@/lib/api";
 import { useSession } from "@/lib/session";
 
 const WORKFLOW = [
@@ -48,9 +49,43 @@ const WORKFLOW = [
   },
 ];
 
+/**
+ * A stored paper, reshaped as an analysis result.
+ *
+ * `PaperDetail` and `AnalysisResponse` carry the same three sections but
+ * differ at the edges: the stored row keeps its document facts as columns,
+ * while the live response nests them under `document`. This adapts one to the
+ * other so `ResultsView` renders both without knowing where the data came
+ * from.
+ *
+ * Only called where `summary` is non-null, which the caller checks.
+ */
+function savedAsAnalysis(paper: PaperDetail): AnalysisResponse {
+  return {
+    document: {
+      filename: paper.filename,
+      page_count: paper.page_count ?? 0,
+      extracted_characters: paper.extracted_characters ?? 0,
+      chunk_count: paper.chunk_count ?? 1,
+      truncated: paper.truncated ?? false,
+    },
+    summary: paper.summary!,
+    research_gaps: paper.research_gaps!,
+    literature_review: paper.literature_review!,
+    model_used: paper.model_used ?? "",
+    model_provider: paper.model_provider,
+    fallback_used: paper.fallback_used,
+    fallback_provider: paper.fallback_provider,
+    processing_time_ms: paper.processing_time_ms,
+  };
+}
+
 export default function DashboardPage() {
   const { records, current } = useSession();
   const { state: stats } = useLibraryStats();
+  // The saved library, so a returning visitor is not told "No analysis yet"
+  // while the counter above says they have two.
+  const { state: recent } = useMostRecentPaper();
   const uploadRef = useRef<HTMLDivElement>(null);
 
   const focusUpload = useCallback(() => {
@@ -173,12 +208,37 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* Three cases, in the order they are true:
+              1. an analysis run in THIS visit - the freshest thing there is;
+              2. otherwise the most recently SAVED paper, so a reload does not
+                 erase the page;
+              3. otherwise a genuinely empty library.
+            Case 2 is the fix: the old code jumped from 1 to 3 and printed
+            "No analysis yet" beside a stat card counting saved papers. */}
         {current ? (
           <ResultsView
             data={current.data}
             completedAt={current.completedAt}
             fileSizeBytes={current.sizeBytes}
           />
+        ) : recent.kind === "ready" && recent.data && recent.data.summary ? (
+          <>
+            <p className="card__hint" style={{ marginBottom: "0.75rem" }}>
+              Your most recently saved paper. Upload another above to analyse
+              something new.
+            </p>
+            <ResultsView
+              data={savedAsAnalysis(recent.data)}
+              completedAt={new Date(recent.data.created_at)}
+              fileSizeBytes={recent.data.file_size_bytes ?? undefined}
+            />
+          </>
+        ) : recent.kind === "loading" ? (
+          <div className="skeleton">
+            <div className="skeleton__line skeleton__line--title" />
+            <div className="skeleton__line" />
+            <div className="skeleton__line" />
+          </div>
         ) : (
           <div className="card">
             <EmptyState

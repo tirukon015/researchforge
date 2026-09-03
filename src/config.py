@@ -38,6 +38,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # annotated attributes into fields.
 MODEL_PREFIXES_BY_PROVIDER: dict[str, tuple[str, ...]] = {
     "anthropic": ("claude",),
+    "groq": ("qwen", "llama", "mixtral", "gemma", "deepseek"),
+    # Gemini is RETIRED from the active workflow (see `llm_provider` below).
+    # The prefix is kept so a stale LLM_MODEL left in an environment is still
+    # recognised as another vendor's and ignored, rather than being posted to
+    # Anthropic or Groq verbatim and rejected as an unknown model.
     "gemini": ("gemini",),
 }
 
@@ -95,17 +100,24 @@ class Settings(BaseSettings):
         return bool(self.jina_api_key.strip())
 
     # ---------- LLM (generation) ----------
-    # D5 is still formally OPEN. Rather than hard-wiring a vendor, the code
-    # talks to `src.rag.llm.base.LLMProvider`, and `llm_provider` selects the
-    # concrete implementation. Switching vendors is a new file plus this one
-    # env var - never a rewrite. Two are implemented: "anthropic" and "gemini".
+    # The code talks to `src.rag.llm.base.LLMProvider`; `llm_provider` selects
+    # the concrete implementation. Two are ACTIVE: "anthropic" and "groq".
     #
-    # Gemini is the default because it is what the deployment runs on. The
-    # defaults are kept in step: llm_model names a Gemini model, and
-    # model_for_provider ignores a name belonging to the other vendor, so
-    # changing llm_provider alone still produces a working configuration.
-    llm_provider: str = "gemini"
-    llm_model: str = "gemini-3.7-flash"
+    # `llm_provider` is only the DEFAULT primary. The live value is the owner's
+    # choice, stored in the `system_settings` table as `active_ai_provider`, so
+    # switching providers is a setting rather than a redeploy. This env var is
+    # what a fresh deployment starts on before any owner has chosen.
+    #
+    # Whichever is primary, the OTHER is automatically the fallback. There is
+    # no third "auto" option - see src/rag/llm/router.py.
+    #
+    # `llm_model` is empty by default. It is a single setting shared by every
+    # provider, so a value belonging to one vendor would be sent verbatim to
+    # the other; leaving it unset means each provider uses its own default via
+    # `model_for_provider`. Prefer the per-provider ANTHROPIC_MODEL and
+    # GROQ_MODEL below, which cannot collide.
+    llm_provider: str = "anthropic"
+    llm_model: str = ""
 
     # Effort controls how hard the model thinks. "high" is the sensible
     # default for analytical work; "low" is enough for smoke tests.
@@ -115,7 +127,37 @@ class Settings(BaseSettings):
     # Server-side only. Empty by default so the app still starts without it -
     # only the /api/analyze endpoint fails, and with a clear message.
     anthropic_api_key: str = ""
+    groq_api_key: str = ""
+    # Retained for the retired Gemini provider and for reading historical
+    # analyses. Nothing in the active analysis path uses it.
     gemini_api_key: str = ""
+
+    # Per-provider model names. Preferred over the shared `llm_model` because
+    # they cannot be sent to the wrong vendor.
+    anthropic_model: str = "claude-opus-5"
+    groq_model: str = "qwen/qwen3.6-27b"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+
+    @property
+    def has_any_llm_credentials(self) -> bool:
+        """Whether AT LEAST ONE active provider is usable.
+
+        Distinct from `has_llm_credentials`, which asks about the selected
+        provider only. With a fallback in play, an analysis can still succeed
+        when the primary has no key - so the API refuses up front only when
+        BOTH are unconfigured.
+        """
+        return bool(self.anthropic_api_key.strip() or self.groq_api_key.strip())
+
+    def has_credentials_for(self, provider: str) -> bool:
+        """Whether one named provider is usable."""
+        return bool(
+            {
+                "anthropic": self.anthropic_api_key,
+                "groq": self.groq_api_key,
+                "gemini": self.gemini_api_key,
+            }.get(provider.strip().lower(), "").strip()
+        )
 
     @property
     def llm_provider_name(self) -> str:
@@ -142,6 +184,7 @@ class Settings(BaseSettings):
         """
         return {
             "anthropic": self.anthropic_api_key,
+            "groq": self.groq_api_key,
             "gemini": self.gemini_api_key,
         }.get(self.llm_provider_name, "")
 
@@ -173,6 +216,25 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_service_role_key: str = ""
     storage_bucket: str = "papers"
+
+    # ---------- Owner ----------
+    # Who may change the global AI configuration.
+    #
+    # This is a BOOTSTRAP path, not the only one. Ownership properly lives in
+    # the `app_owners` table, which is what the database's own policies check.
+    # This variable exists because that table starts empty and somebody has to
+    # be able to grant the first owner: comparing against the email on a
+    # VERIFIED access token (never one supplied by the browser) is a safe way
+    # to seed it without a manual SQL step.
+    #
+    # It is compared server-side only. A frontend email comparison would be
+    # trivially bypassed and is never sufficient on its own.
+    owner_email: str = ""
+
+    @property
+    def owner_emails(self) -> list[str]:
+        """Bootstrap owner addresses, lower-cased. Usually zero or one."""
+        return [e.strip().lower() for e in self.owner_email.split(",") if e.strip()]
 
     # The PUBLIC key. Safe to ship in a browser and safe to log; it is listed
     # here because the backend needs it for two things that are not writes:

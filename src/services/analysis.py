@@ -135,5 +135,18 @@ def analyse_paper(
         summary=summary,
         research_gaps=gaps,
         literature_review=review,
+        # `provider` may be a RoutedLLMProvider, in which case `model_name`
+        # already reports the model that ACTUALLY ran rather than the one that
+        # was configured. getattr keeps this service provider-agnostic: a plain
+        # single-vendor provider has no routing metadata and reports None,
+        # which is the truth for it.
         model_used=provider.model_name,
+        model_provider=getattr(provider, "active_key", None),
+        fallback_used=getattr(provider, "fallback_used", None),
+        fallback_provider=(
+            getattr(provider, "active_key", None)
+            if getattr(provider, "fallback_used", False)
+            else None
+        ),
+        processing_time_ms=getattr(provider, "elapsed_ms", None),
     )

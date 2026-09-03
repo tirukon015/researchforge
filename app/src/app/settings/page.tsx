@@ -16,6 +16,7 @@ import Image from "next/image";
 
 import BackendStatus from "@/components/BackendStatus";
 import { IconInfo } from "@/components/Icons";
+import OwnerAiSettings from "@/components/OwnerAiSettings";
 import ThemeToggle from "@/components/ThemeToggle";
 import { API_BASE_LABEL } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -145,6 +146,10 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* Renders nothing unless the signed-in user is the owner. The check
+          is made server-side; this is presentation only. */}
+      <OwnerAiSettings />
+
       <section className="section" aria-labelledby="ai-heading">
         <div className="section__head">
           <h2 className="section__title" id="ai-heading">
@@ -155,8 +160,19 @@ export default function SettingsPage() {
           <div className="card__body">
             <dl className="kv">
               <div>
-                <dt>AI provider</dt>
-                <dd>Gemini</dd>
+                <dt>AI providers</dt>
+                {/* Stated as a pair rather than as one name, because that is
+                    what the architecture is: one primary, chosen by the owner,
+                    and the other standing by. Which is primary is shown in the
+                    owner-only section below, and on each analysis result. */}
+                <dd>Anthropic Claude and Groq Qwen 3.6 27B</dd>
+              </div>
+              <div>
+                <dt>Fallback</dt>
+                <dd>
+                  Automatic, once per analysis, for rate limits and temporary
+                  provider failures only
+                </dd>
               </div>
               <div>
                 <dt>Analysis passes</dt>
