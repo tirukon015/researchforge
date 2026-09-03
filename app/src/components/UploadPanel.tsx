@@ -14,7 +14,7 @@
  * the safe direction to be wrong in, since the message names the limit.
  */
 
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import {
   IconAlert,
@@ -23,6 +23,7 @@ import {
   IconTrash,
   IconUpload,
 } from "@/components/Icons";
+import type { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/session";
 
 const MAX_MB = 25;
@@ -61,6 +62,88 @@ function remedyFor(kind: string): string {
   }
 }
 
+/**
+ * A live countdown for a rate limit, or null when there is nothing to count.
+ *
+ * Returns null when the provider gave no delay, rather than counting down from
+ * an invented number: "wait 30 seconds" is a claim, and we only make it when
+ * the API said so. Restarts whenever a NEW rate limit arrives, keyed on the
+ * error object's identity, so a second failure does not inherit the first
+ * one's remaining time.
+ */
+function useRetryCountdown(error: ApiError | null): number | null {
+  const seconds = error?.retryAfterSeconds;
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (seconds === undefined) {
+      setRemaining(null);
+      return;
+    }
+    const until = Date.now() + seconds * 1000;
+    const tick = () => {
+      const left = Math.ceil((until - Date.now()) / 1000);
+      setRemaining(left > 0 ? left : 0);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+    // `error` is the dependency, not `seconds`: two consecutive limits with
+    // the same delay are different waits and must each restart the clock.
+  }, [error, seconds]);
+
+  return remaining;
+}
+
+/** The rate-limit notice. Separate from the generic error notice because the
+ *  wording, and whether retrying is even worth suggesting, are different. */
+function RateLimitNotice({
+  error,
+  remaining,
+}: {
+  error: ApiError;
+  remaining: number | null;
+}) {
+  const exhausted = error.quotaExhausted === true;
+  return (
+    <div className="notice notice--error notice--spaced" role="alert">
+      <IconAlert size={16} />
+      <div>
+        <p>
+          <strong>
+            {exhausted
+              ? "The Gemini API quota has been used up."
+              : "Gemini is temporarily rate limiting requests."}
+          </strong>
+        </p>
+        <p>{error.message}</p>
+        <p>
+          {exhausted ? (
+            <>
+              This is a limit on the API account, not a problem with your paper.
+              Trying again now will not help. Wait for the quota to reset, or
+              raise the limit on the Google AI Studio project. Your file is
+              still here and ready when the quota is back.
+            </>
+          ) : remaining === null ? (
+            <>
+              Your file is still here. Please wait a short while, then press
+              Analyse paper once. Repeated attempts use up the same allowance.
+            </>
+          ) : remaining > 0 ? (
+            <>
+              Your file is still here. Analyse paper becomes available again in{" "}
+              <strong>{remaining}s</strong>.
+            </>
+          ) : (
+            <>The wait is over. You can press Analyse paper once now.</>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function UploadPanel() {
   const { file, setFile, work, elapsed, analyse, clearStaged, health } = useSession();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -71,6 +154,17 @@ export default function UploadPanel() {
 
   const busy = work.kind === "working";
   const backendDown = health.kind === "down";
+
+  // The rate limit currently in force, if the last attempt hit one.
+  const rateLimit =
+    work.kind === "failed" && work.error.kind === "ratelimited" ? work.error : null;
+  const retryIn = useRetryCountdown(rateLimit);
+  // Held back only while a countdown is genuinely running. With no delay from
+  // the provider there is nothing to count, so the button stays available and
+  // the notice asks for one attempt rather than several - disabling it
+  // indefinitely would strand the user with no way forward.
+  const waitingOnQuota =
+    rateLimit !== null && (rateLimit.quotaExhausted === true || (retryIn !== null && retryIn > 0));
 
   const accept = useCallback(
     (candidate: File | null) => {
@@ -190,7 +284,7 @@ export default function UploadPanel() {
               <button
                 className="btn btn--primary btn--lg"
                 onClick={() => void analyse()}
-                disabled={backendDown}
+                disabled={backendDown || waitingOnQuota}
               >
                 <IconSpark size={16} />
                 Analyse paper
@@ -255,7 +349,9 @@ export default function UploadPanel() {
           </div>
         )}
 
-        {work.kind === "failed" && (
+        {rateLimit && <RateLimitNotice error={rateLimit} remaining={retryIn} />}
+
+        {work.kind === "failed" && !rateLimit && (
           <div className="notice notice--error notice--spaced" role="alert">
             <IconAlert size={16} />
             <div>

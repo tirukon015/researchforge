@@ -112,7 +112,7 @@ different port. See [TROUBLESHOOTING](TROUBLESHOOTING.md).
 Backend, from the repository root with the virtual environment active:
 
 ```bash
-pytest                      # 114 tests, fully offline, no API key needed
+pytest                      # 231 tests, fully offline, no API key needed
 ruff check src tests        # lint
 ruff format src tests       # format
 uvicorn src.main:app --reload --port 8000

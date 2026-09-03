@@ -27,7 +27,7 @@ Supabase project and its credentials.
 | Initial schema | `src/db/migrations/001_initial_schema.sql` | Written, never run |
 | Analysis and review schema | `src/db/migrations/002_analysis_and_reviews.sql` | Written, never run |
 | Storage independent interface | `src/db/repository.py` | Complete |
-| Supabase implementation | `src/db/supabase.py` | Complete. Covered by 37 tests against a mock PostgREST, not yet run against a live database |
+| Supabase implementation | `src/db/supabase.py` | Complete. Covered by 40 tests against a mock PostgREST. The embedded-analysis query shape is additionally verified against the live PostgREST instance; the rest is not |
 | Request and response models | `src/schemas/library.py` | Complete |
 | Settings and detection | `src/config.py`, `Settings.has_database` | Complete |
 | Library API routes | `src/api/papers.py`, `src/api/reviews.py` | Wired. 7 endpoints |

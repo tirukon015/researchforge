@@ -14,11 +14,17 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from src.api.analyze import get_provider
+from src.api.analyze import get_provider, rate_limit_headers
 from src.api.papers import get_library
 from src.config import Settings, get_settings
 from src.db import NotFoundError, PaperRepository, RepositoryError
-from src.rag.llm import LLMCredentialsError, LLMError, LLMProvider, LLMResponseError
+from src.rag.llm import (
+    LLMCredentialsError,
+    LLMError,
+    LLMProvider,
+    LLMRateLimitError,
+    LLMResponseError,
+)
 from src.schemas.library import (
     CrossReviewRequest,
     DeleteResponse,
@@ -39,6 +45,7 @@ router = APIRouter(prefix="/api/reviews", tags=["Literature reviews"])
     summary="Generate a literature review across several saved papers",
     responses={
         404: {"description": "One or more selected papers are not in the library"},
+        429: {"description": "The AI provider is rate limiting or its quota is spent"},
         502: {"description": "The AI service failed or returned unusable output"},
         503: {"description": "The library or the AI credentials are unavailable"},
     },
@@ -79,6 +86,16 @@ async def create_cross_review(
     except LLMCredentialsError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
+    except LLMRateLimitError as exc:
+        # Before LLMError, which it subclasses. A cross-paper review is a
+        # single expensive call, so telling the user to wait the stated time
+        # matters more here than anywhere else.
+        logger.warning("rate limited generating cross-review (exhausted=%s)", exc.quota_exhausted)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(exc),
+            headers=rate_limit_headers(exc),
         ) from exc
     except LLMResponseError as exc:
         logger.warning("unusable cross-review output: %s", exc)

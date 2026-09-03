@@ -227,6 +227,41 @@ class TestGetPaper:
         assert "analyses(" in seen[0].url.params["select"]
         assert seen[0].url.params["id"] == "eq.abc"
 
+    def test_the_embedded_order_and_limit_are_separate_query_parameters(
+        self, _patch_client
+    ) -> None:
+        """Regression. Ordering an embedded resource inside the select
+        parentheses, as `analyses(...,created_at.desc.limit.1)`, looks
+        plausible and PostgREST rejects it with "failed to parse select
+        parameter". It reached production once. The mock cannot reject bad
+        syntax, so the shape is asserted directly."""
+        seen = mock(_patch_client, lambda r: json_response([PAPER_ROW]))
+        run(repo().get_paper("abc"))
+        params = seen[0].url.params
+
+        assert params["analyses.order"] == "created_at.desc"
+        assert params["analyses.limit"] == "1"
+        # The select lists columns only. No ordering, no limit, inside it.
+        select = params["select"]
+        assert "analyses(" in select
+        assert ".desc" not in select
+        assert "limit" not in select
+
+    @pytest.mark.parametrize("call", ["list", "review"])
+    def test_every_query_that_embeds_an_analysis_orders_it(self, _patch_client, call) -> None:
+        """All three call sites need the ordering, not just get_paper: a paper
+        with two analyses would otherwise show an arbitrary one."""
+        seen = mock(
+            _patch_client,
+            lambda r: json_response([PAPER_ROW], headers={"content-range": "0-0/1"}),
+        )
+        if call == "list":
+            run(repo().list_papers())
+        else:
+            run(repo().get_papers_for_review(["11111111-1111-1111-1111-111111111111"]))
+        assert seen[0].url.params["analyses.order"] == "created_at.desc"
+        assert seen[0].url.params["analyses.limit"] == "1"
+
 
 class TestListPapers:
     def _ok(self, rows, total):

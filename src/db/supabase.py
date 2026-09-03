@@ -222,13 +222,24 @@ class SupabaseRepository(PaperRepository):
             truncated=analysis.get("truncated") if analysis else None,
         )
 
-    # PostgREST embeds the related analysis in one round trip. Ordering by
-    # created_at desc and limiting to 1 gives the most recent analysis per
-    # paper without a second query per row.
+    # PostgREST embeds the related analysis in one round trip, which is what
+    # avoids a second query per row when the library lists thirty papers.
+    #
+    # Ordering and limiting an EMBEDDED resource is done with separate query
+    # parameters, not inside the select parentheses. Writing
+    # `analyses(...,created_at.desc.limit.1)` looks plausible and is rejected
+    # by PostgREST with "failed to parse select parameter" - see
+    # `_ANALYSIS_PARAMS`, which carries the ordering instead.
     _ANALYSIS_EMBED = (
         "analyses(model_used,summary,research_gaps,literature_review,"
-        "chunk_count,truncated,created_at.desc.limit.1)"
+        "chunk_count,truncated,created_at)"
     )
+    # Most recent analysis per paper. `limit` on an embedded resource applies
+    # per parent row, so this is one analysis each, not one across the page.
+    _ANALYSIS_PARAMS = {
+        "analyses.order": "created_at.desc",
+        "analyses.limit": 1,
+    }
     _PAPER_COLUMNS = (
         "id,title,filename,status,page_count,extracted_characters,"
         "file_size_bytes,content_type,created_at,updated_at"
@@ -290,6 +301,7 @@ class SupabaseRepository(PaperRepository):
             "order": _ORDER_BY.get(sort, _ORDER_BY[SortOrder.NEWEST]),
             "limit": limit,
             "offset": offset,
+            **self._ANALYSIS_PARAMS,
         }
         if status:
             params["status"] = f"eq.{status}"
@@ -329,6 +341,7 @@ class SupabaseRepository(PaperRepository):
                 "select": f"{self._PAPER_COLUMNS},{self._ANALYSIS_EMBED}",
                 "id": f"eq.{paper_id}",
                 "limit": 1,
+                **self._ANALYSIS_PARAMS,
             },
         )
         rows = response.json()
@@ -353,6 +366,7 @@ class SupabaseRepository(PaperRepository):
             params={
                 "select": f"{self._PAPER_COLUMNS},{self._ANALYSIS_EMBED}",
                 "id": f"in.({id_list})",
+                **self._ANALYSIS_PARAMS,
             },
         )
         found = {str(row["id"]): row for row in response.json()}

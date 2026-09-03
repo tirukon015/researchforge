@@ -26,7 +26,10 @@ type GenState =
   | { kind: "working" }
   | { kind: "done"; review: ReviewRecord }
   | { kind: "unavailable"; detail: string }
-  | { kind: "failed"; detail: string };
+  // `exhausted` suppresses the retry button. Offering "Try again" against a
+  // spent quota invites the user to burn what little allowance is left on a
+  // request that cannot succeed.
+  | { kind: "failed"; detail: string; exhausted?: boolean };
 
 export default function LiteratureReviewPage() {
   const { current } = useSession();
@@ -52,6 +55,10 @@ export default function LiteratureReviewPage() {
           error instanceof ApiError
             ? error.message
             : "The review could not be generated. Please try again.",
+        exhausted:
+          error instanceof ApiError &&
+          error.kind === "ratelimited" &&
+          error.quotaExhausted === true,
       });
     }
   }, [gen.kind, canReview, selected]);
@@ -215,14 +222,16 @@ export default function LiteratureReviewPage() {
                           <strong>The review could not be generated.</strong>{" "}
                           {gen.detail}
                         </p>
-                        <p>
-                          <button
-                            className="btn btn--sm"
-                            onClick={() => void generate()}
-                          >
-                            Try again
-                          </button>
-                        </p>
+                        {!gen.exhausted && (
+                          <p>
+                            <button
+                              className="btn btn--sm"
+                              onClick={() => void generate()}
+                            >
+                              Try again
+                            </button>
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}

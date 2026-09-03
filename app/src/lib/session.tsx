@@ -145,8 +145,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setWork({ kind: "idle" });
   }, []);
 
+  // Guards against a second analysis being launched while one is in flight.
+  //
+  // A ref, not state, because only a ref is updated synchronously. Two clicks
+  // landing in the same React batch would both read the OLD value of a state
+  // flag and both proceed; each analysis costs three model calls against a
+  // rate-limited quota, so the duplicate is expensive as well as pointless.
+  // The button also unmounts while `work.kind === "working"`, but that is a
+  // rendering consequence and cannot be relied on to have happened yet.
+  const inFlight = useRef(false);
+
   const analyse = useCallback(async () => {
-    if (!file) return;
+    if (!file || inFlight.current) return;
+    inFlight.current = true;
     const staged = file;
     setWork({ kind: "working" });
     try {
@@ -166,6 +177,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setWork({ kind: "done" });
       setFileState(null);
     } catch (error) {
+      // The staged file is deliberately NOT cleared here. A failed analysis
+      // must leave the paper ready to try again, especially a rate limit,
+      // where the fix is to wait rather than to upload the file a second time.
       setWork({
         kind: "failed",
         error:
@@ -173,6 +187,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             ? error
             : new ApiError("upstream", "An unexpected error occurred."),
       });
+    } finally {
+      // In a `finally` so a thrown error cannot leave the guard stuck on and
+      // the button permanently dead.
+      inFlight.current = false;
     }
   }, [file]);
 

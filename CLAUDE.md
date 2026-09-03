@@ -320,9 +320,10 @@ A milestone is complete only when **all** of these are true:
   review, end to end.
 - **Live:** <https://researchforge.rukon.dev> (also `researchforge-ten.vercel.app`)
 - **Next phase:** 2. Database Foundation (awaiting my approval)
-- **Working:** FastAPI with `/health` and `POST /api/analyze`; real PDF
-  extraction (pypdf); long-paper chunking; three structured LLM calls;
-  Next.js frontend with upload and results UI. **107/107 tests passing.**
+- **Working:** FastAPI with `/health`, `POST /api/analyze`, and the library and
+  review routes; real PDF extraction (pypdf); long-paper chunking; three
+  structured LLM calls; Next.js frontend with Dashboard, My Papers, Literature
+  Review, Workspace and Settings. **231/231 tests passing.**
 - **Verified on:** Python 3.14.7 (Windows). `requirements.txt` pins were
   authored for 3.12 and last verified on macOS 3.12.10; they install and pass
   on 3.14.7 too.
@@ -335,8 +336,22 @@ A milestone is complete only when **all** of these are true:
 - **Settled:** LLM provider (D5). Gemini active, Anthropic retained; backend
   host (D7). Vercel, same project.
 - **Locked:** embedding model (D6). Jina `jina-embeddings-v3` @ 1024 dims (see §9)
-- **Not built:** no database, no persistence, no auth, no embeddings/retrieval
-  (the MVP does not need them). Analysis is stateless.
+- **Not built:** no auth, and **no embeddings and no retrieval**. Jina,
+  pgvector and the `chunks` table exist as scaffolding that NOTHING calls: the
+  production path is PDF -> text -> full-document context -> three grounded
+  Gemini passes. This is full-document grounded generation, not RAG, and must
+  not be described as RAG. `chunk_text` in the analysis service is a
+  map-reduce digest for papers over 400,000 characters, not a RAG chunker.
+- **Database:** schema and the library API are built and deployed. Reads and
+  writes currently fail in production because the Vercel variable
+  `SUPABASE_SERVICE_ROLE_KEY` holds an `sb_publishable_` key, which does not
+  bypass RLS: every SELECT returns zero rows and every INSERT is refused.
+  Replacing it with the Supabase secret key is an owner action, pending.
+- **Provider rate limits:** a Gemini `429` is reported as HTTP `429` (not
+  `502`), carries `Retry-After` and `X-Quota-Exhausted` when known, and is
+  retried at most once and only for a short, stated delay. The SDK's own
+  hidden four-attempt retry on `429` is switched off deliberately; see the
+  module docstring in `src/rag/llm/gemini_provider.py`.
 - **Requires a `GEMINI_API_KEY`** (or `ANTHROPIC_API_KEY` when
   `LLM_PROVIDER=anthropic`) to analyse; everything else, including the whole
   test suite, runs without one.

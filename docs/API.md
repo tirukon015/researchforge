@@ -164,9 +164,31 @@ parsing message text.
 | --- | --- | --- |
 | `413` | File exceeds the upload limit. | The uploader. The message names the limit. |
 | `422` | Not a usable PDF: wrong type, empty, encrypted, or scanned with no text layer. | The uploader. |
+| `429` | The AI provider is rate limiting, or its quota is spent. | Nobody's fault. See below. |
 | `502` | The AI service failed, or returned output that did not match the schema. | The service. Retrying may help. |
 | `503` | No AI credentials configured on the server. | An operator. |
 | `405` | Wrong method, for example a `GET`. | The caller. |
+
+### 429 and the two response headers
+
+`429` is deliberately separate from `502`. A `502` says the model service is
+broken; a `429` says it is working normally and the request was over an
+allowance. Only one of those is worth retrying, and retrying the wrong one
+spends quota that has already run out.
+
+| Header | When it is sent | Meaning |
+| --- | --- | --- |
+| `Retry-After` | Only when the provider stated a delay | Whole seconds to wait, rounded up. Absent means "not stated", never "retry now". |
+| `X-Quota-Exhausted` | Only on positive evidence of a long spent allowance | `true` when the exhausted quota is a per-day one, or the delay is too long to wait out. |
+
+Both headers are listed in the backend's CORS `expose_headers`, because a
+browser hides every response header outside a short safelist and neither of
+these is on it.
+
+The server retries a rate limit **at most once**, and only when the provider
+supplied a delay that is short enough to wait out. An exhausted quota is never
+retried: a second request cannot succeed. See `src/rag/llm/gemini_provider.py`.
+The same `429` contract applies to `POST /api/reviews/cross`.
 
 All errors use FastAPI's standard shape:
 

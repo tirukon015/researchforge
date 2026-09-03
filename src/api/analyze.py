@@ -7,6 +7,10 @@ parsing message text:
 
     413  the file is too large
     422  the upload is not a usable PDF (wrong type, empty, scanned, encrypted)
+    429  the AI provider is rate limiting, or its quota is spent. Carries
+         Retry-After when the provider said how long to wait, and is kept
+         DISTINCT from 502: "you are over your allowance" is not "the service
+         is broken", and only one of the two is worth retrying
     502  the AI service replied with something unusable, or failed
     503  the server has no API key configured - an operator problem, not the
          user's fault, and the only one where retrying identically will help
@@ -17,6 +21,7 @@ for them. Nothing here returns a 500 for an expected condition.
 """
 
 import logging
+import math
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
@@ -26,6 +31,7 @@ from src.rag.llm import (
     LLMCredentialsError,
     LLMError,
     LLMProvider,
+    LLMRateLimitError,
     LLMResponseError,
     get_llm_provider,
 )
@@ -35,6 +41,27 @@ from src.services.analysis import analyse_paper
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["Analysis"])
+
+
+def rate_limit_headers(exc: LLMRateLimitError) -> dict[str, str]:
+    """Response headers describing a rate limit, carrying no configuration.
+
+    `Retry-After` is set only when the provider actually supplied a delay:
+    inventing one would have the client count down to a moment we have no
+    reason to think is right. `X-Quota-Exhausted` separates "wait a moment"
+    from "this allowance is spent", which the interface words differently.
+
+    Both values are derived from the provider's reply. Neither exposes the API
+    key, the model, or any environment variable.
+    """
+    headers: dict[str, str] = {}
+    if exc.retry_after_seconds is not None:
+        # Retry-After is defined in whole seconds; round up so the client never
+        # retries a fraction of a second early.
+        headers["Retry-After"] = str(max(1, math.ceil(exc.retry_after_seconds)))
+    if exc.quota_exhausted:
+        headers["X-Quota-Exhausted"] = "true"
+    return headers
 
 
 def get_provider(settings: Settings = Depends(get_settings)) -> LLMProvider:
@@ -66,6 +93,7 @@ def get_provider(settings: Settings = Depends(get_settings)) -> LLMProvider:
     responses={
         413: {"description": "File exceeds the upload size limit"},
         422: {"description": "The file is not a readable PDF"},
+        429: {"description": "The AI provider is rate limiting or its quota is spent"},
         502: {"description": "The AI service failed or returned unusable output"},
         503: {"description": "No AI credentials are configured on the server"},
     },
@@ -108,6 +136,16 @@ async def analyze(
     except LLMCredentialsError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
+    except LLMRateLimitError as exc:
+        # Caught BEFORE LLMError, which it subclasses. Reported as 429 so the
+        # client can tell a quota problem from a broken upstream and can stop
+        # inviting the user to retry into a limit that is already spent.
+        logger.warning("rate limited analysing %s (exhausted=%s)", filename, exc.quota_exhausted)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(exc),
+            headers=rate_limit_headers(exc),
         ) from exc
     except LLMResponseError as exc:
         logger.warning("unusable model output for %s: %s", filename, exc)

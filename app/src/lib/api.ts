@@ -112,6 +112,7 @@ export interface HealthPayload {
  *   upstream  - the AI service failed or returned something unusable
  *   config    - the server has no API key: an operator must fix it
  *   malformed - we got a 200 whose body was not the shape we expect
+ *   ratelimited - the AI provider refused on quota (429), not a fault
  *   unavailable - the research library is not connected (503)
  *   notfound  - the record does not exist (404)
  *   conflict  - the write would destroy something (409)
@@ -122,22 +123,61 @@ export type ApiErrorKind =
   | "upstream"
   | "config"
   | "malformed"
+  // Kept apart from "upstream" on purpose. A rate limit means the service is
+  // working and we are over an allowance, which needs different words and a
+  // different suggestion than "the AI service is broken".
+  | "ratelimited"
   // Library-specific. "unavailable" means there is no database configured,
   // which must never be shown as "you have no papers".
   | "unavailable"
   | "notfound"
   | "conflict";
 
+/** Extra facts a rate limit carries. Both are optional because the provider
+ *  does not always supply them, and a missing value must stay missing rather
+ *  than being filled in with a guess the UI would then count down from. */
+export interface ApiErrorDetails {
+  status?: number;
+  /** Seconds the provider asked us to wait, when it said. */
+  retryAfterSeconds?: number;
+  /** True only when the server saw positive evidence of a spent allowance. */
+  quotaExhausted?: boolean;
+}
+
 export class ApiError extends Error {
   readonly kind: ApiErrorKind;
   readonly status?: number;
+  readonly retryAfterSeconds?: number;
+  readonly quotaExhausted?: boolean;
 
-  constructor(kind: ApiErrorKind, message: string, status?: number) {
+  constructor(kind: ApiErrorKind, message: string, details?: number | ApiErrorDetails) {
     super(message);
     this.name = "ApiError";
     this.kind = kind;
-    this.status = status;
+    const d = typeof details === "number" ? { status: details } : (details ?? {});
+    this.status = d.status;
+    this.retryAfterSeconds = d.retryAfterSeconds;
+    this.quotaExhausted = d.quotaExhausted;
   }
+}
+
+/**
+ * Read the rate-limit facts the backend put on the response.
+ *
+ * `Retry-After` and `X-Quota-Exhausted` are set by src/api/analyze.py, and
+ * only when the provider genuinely reported them - so an absent header means
+ * "not known", and this returns undefined rather than inventing a default.
+ * Both are listed in the backend's CORS expose_headers; without that they read
+ * as null in local development, which is handled here as "not known" too.
+ */
+function readRateLimit(res: Response): ApiErrorDetails {
+  const raw = res.headers.get("Retry-After");
+  const seconds = raw === null ? NaN : Number(raw);
+  return {
+    status: res.status,
+    retryAfterSeconds: Number.isFinite(seconds) && seconds > 0 ? seconds : undefined,
+    quotaExhausted: res.headers.get("X-Quota-Exhausted") === "true",
+  };
 }
 
 /** Pull FastAPI's `detail` out of an error body, whatever shape it arrived in. */
@@ -231,6 +271,12 @@ export async function analyzePaper(
     }
     if (res.status === 503) {
       throw new ApiError("config", detail, res.status);
+    }
+    // Before the 5xx branch: 429 is not a server fault and must not be
+    // reported as one. Retrying it the way "upstream" invites spends more of
+    // the allowance that just ran out.
+    if (res.status === 429) {
+      throw new ApiError("ratelimited", detail, readRateLimit(res));
     }
     if (res.status === 502 || res.status >= 500) {
       throw new ApiError("upstream", detail, res.status);
@@ -367,6 +413,9 @@ async function libraryRequest<T>(
     if (res.status === 503) throw new ApiError("unavailable", detail, res.status);
     if (res.status === 404) throw new ApiError("notfound", detail, res.status);
     if (res.status === 409) throw new ApiError("conflict", detail, res.status);
+    // A cross-paper review is a generation call and can be rate limited like
+    // any other, so this path needs the same distinction the upload path has.
+    if (res.status === 429) throw new ApiError("ratelimited", detail, readRateLimit(res));
     if (res.status === 422 || res.status === 413) {
       throw new ApiError("rejected", detail, res.status);
     }

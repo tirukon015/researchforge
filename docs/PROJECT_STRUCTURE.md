@@ -64,7 +64,7 @@ researchforge/
 │           ├── 001_initial_schema.sql
 │           └── 002_analysis_and_reviews.sql
 │
-├── tests/                      pytest suite, 114 tests, fully offline
+├── tests/                      pytest suite, 231 tests, fully offline
 │   ├── test_main.py
 │   ├── test_analysis.py
 │   ├── test_llm_providers.py

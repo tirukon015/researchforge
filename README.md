@@ -157,7 +157,7 @@ server side only and never reach the browser.
 ## Testing
 
 ```bash
-pytest                     # 114 tests, fully offline, no API key required
+pytest                     # 231 tests, fully offline, no API key required
 ruff check src tests       # lint
 cd app && npm run build && npm run typecheck
 ```

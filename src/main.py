@@ -88,6 +88,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Browsers hide every response header from JavaScript except a short
+    # safelist, and neither of these is on it. Without this the rate-limit
+    # timing would be invisible to the frontend in local development, where
+    # the two really are different origins, and the countdown would silently
+    # never appear. Naming two response headers grants no additional access:
+    # `allow_origins` still decides who may call at all.
+    expose_headers=["Retry-After", "X-Quota-Exhausted"],
 )
 
 

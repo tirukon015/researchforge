@@ -82,10 +82,27 @@ other vendor cannot make the application look ready.
 
 ---
 
-## 502 with a quota message
+## 429 with a quota message
 
 **Cause.** The AI provider's rate or quota limit was reached. On the Gemini free
 tier the daily allowance is small, and **one analysis costs three requests**.
+
+This used to be reported as a `502`, which was wrong: the service is working,
+and the request was simply over an allowance. It is now a `429`, and the
+interface words the two cases differently.
+
+**Which case is it?** Read the response headers rather than the prose:
+
+| Response | Meaning | What to do |
+| --- | --- | --- |
+| `429` + `Retry-After: 44` | A short window limit. | Wait the stated time. The interface counts it down and holds the Analyse button until it expires. |
+| `429` + `X-Quota-Exhausted: true` | A long allowance, usually per day, is spent. | Retrying will not help. Wait for the reset or raise the limit. The interface says so and does not offer a retry. |
+| `429` with neither header | Rate limited, duration unknown. | Wait a little, then try once. Nothing is guessed on your behalf. |
+
+The server retries a short limit **once**, waiting the delay Gemini supplied,
+and never retries an exhausted quota. The Gemini SDK's own hidden retry (four
+attempts per call, which turned one rate-limited analysis into twelve requests)
+is switched off for `429` in `src/rag/llm/gemini_provider.py`.
 
 **Check.** The response passes the provider's own text through, which names the
 metric and the model:

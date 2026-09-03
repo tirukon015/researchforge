@@ -10,6 +10,7 @@ from src.rag.llm.base import (
     LLMCredentialsError,
     LLMError,
     LLMProvider,
+    LLMRateLimitError,
     LLMResponseError,
 )
 
@@ -17,6 +18,7 @@ __all__ = [
     "LLMCredentialsError",
     "LLMError",
     "LLMProvider",
+    "LLMRateLimitError",
     "LLMResponseError",
     "get_llm_provider",
 ]

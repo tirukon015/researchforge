@@ -26,6 +26,7 @@ from src.rag.llm.base import (
     LLMCredentialsError,
     LLMError,
     LLMProvider,
+    LLMRateLimitError,
     LLMResponseError,
 )
 
@@ -92,7 +93,14 @@ class AnthropicLLMProvider(LLMProvider):
                 "The configured Anthropic key lacks permission for this model."
             )
         if isinstance(exc, anthropic.RateLimitError):
-            return LLMError("The Anthropic API is rate limiting this key. Please retry shortly.")
+            # The same project-owned type Gemini raises, so the API layer maps
+            # a rate limit to 429 whichever provider is configured. Anthropic's
+            # SDK does its own bounded retrying and does not hand us a delay,
+            # so none is claimed: `retry_after_seconds` stays None rather than
+            # carrying a number nobody supplied.
+            return LLMRateLimitError(
+                "The Anthropic API is rate limiting this key. Please wait and try again."
+            )
         if isinstance(exc, anthropic.APITimeoutError):
             return LLMError(
                 "The analysis timed out. This paper may be unusually long - "

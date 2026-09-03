@@ -50,6 +50,42 @@ class LLMResponseError(LLMError):
     """
 
 
+class LLMRateLimitError(LLMError):
+    """The provider refused the request because a quota was exceeded.
+
+    Kept separate from `LLMError` because it is the one generation failure that
+    is neither our fault nor the uploader's, and the only one where the RIGHT
+    response is to wait. The API layer maps it to HTTP 429 rather than 502, so
+    the client can tell "the service is broken" from "the service is fine and
+    you are over your allowance".
+
+    Two facts travel with it, because they lead to different advice:
+
+    `retry_after_seconds`
+        How long the provider said to wait, when it said anything at all.
+        `None` means it gave no timing, NOT that the wait is zero: a caller
+        must not substitute a guess.
+
+    `quota_exhausted`
+        True only on POSITIVE evidence that the exhausted allowance is a long
+        one (a per-day quota, or a retry delay too long to sit out). False
+        means "no such evidence", not "proven temporary". The distinction
+        matters: telling someone to retry in a minute when their daily free
+        tier is gone wastes the little quota that remains.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        retry_after_seconds: float | None = None,
+        quota_exhausted: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
+        self.quota_exhausted = quota_exhausted
+
+
 class LLMProvider(ABC):
     """The contract every generation provider must satisfy."""
 
