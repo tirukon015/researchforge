@@ -319,12 +319,25 @@ A milestone is complete only when **all** of these are true:
 - **Phase:** deployed MVP with **authentication and per-user research
   libraries**, upload → summary + research gaps + literature review, end to end.
 - **Live:** <https://researchforge.rukon.dev> (also `researchforge-ten.vercel.app`)
-- **Next phase:** awaiting your decision. Migration 003 is written and pending a run in the Supabase SQL Editor.
+- **Next phase:** see `docs/HANDOVER.md`. Migrations 003 and 004 are written and
+  pending a run in the Supabase SQL Editor; no provider API key exists, so
+  analysis and the Claude-vs-Groq evaluation are blocked.
+- **AI architecture (2026-09-04):** TWO active providers, Anthropic Claude and
+  Groq Qwen 3.6 27B. The owner picks one as primary in Settings; the other is
+  automatically the fallback. No "auto" option. Fallback is once per analysis
+  and only for retryable failures. Every new analysis records the provider that
+  ACTUALLY produced it. **Gemini is retired from the active workflow** -
+  `gemini_provider.py` is kept because its analyses are still in the database,
+  but nothing routes to it.
+- **Google sign-in:** implemented, completing at `/auth/callback`. The Supabase
+  Google provider is verified working (`/auth/v1/authorize` returns 302 to
+  accounts.google.com). The redirect URL still needs allow-listing in the
+  Supabase dashboard.
 - **Working:** FastAPI with `/health`, `POST /api/analyze`, and the library and
   review routes; real PDF extraction (pypdf); long-paper chunking; three
   structured LLM calls; Next.js frontend with Dashboard, My Papers, Literature
-  Review, Workspace and Settings; accounts and private libraries.
-  **333/333 tests passing.**
+  Review, Workspace and Settings; accounts and private libraries; Google
+  sign-in; owner-only AI configuration. **431/431 tests passing.**
 - **Verified on:** Python 3.14.7 (Windows). `requirements.txt` pins were
   authored for 3.12 and last verified on macOS 3.12.10; they install and pass
   on 3.14.7 too.

@@ -43,3 +43,8 @@ and there is no OCR step.
 Project rules and constraints live in [CLAUDE.md](../CLAUDE.md). Milestones and
 the decision log live in [PROJECT_PLAN.md](../PROJECT_PLAN.md). Neither is
 documentation of the implementation; this folder is.
+
+- [HANDOVER](HANDOVER.md) - what is done, what is blocked, and the exact steps
+  to finish. **Read this first if you are picking the project up.**
+- [EVALUATION](EVALUATION.md) - the evaluation protocol and scoring rubric,
+  fixed before any scoring. No results yet; the experiment needs an API key.

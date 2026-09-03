@@ -125,6 +125,13 @@ to wait for an upload that was never eligible.
 | --- | --- | --- |
 | `SUPABASE_URL` | empty | Base URL of the Supabase project. |
 | `SUPABASE_SERVICE_ROLE_KEY` | empty | See Secrets above. No data request uses it any more; it is read to decide whether a database is configured. |
+| `OWNER_EMAIL` | empty | Bootstrap owner. A verified token whose email matches this may change global AI configuration. Compared SERVER-SIDE against the email Supabase verified, never against anything the browser sent. Optional: ownership properly lives in the `app_owners` table, and this exists only because that table starts empty. |
+| `ANTHROPIC_API_KEY` | empty | **Required for analysis** when Claude is primary or fallback. Server-side only. |
+| `ANTHROPIC_MODEL` | `claude-opus-5` | Claude model to use. Preferred over `LLM_MODEL`, which is shared across vendors and can be sent to the wrong one. |
+| `GROQ_API_KEY` | empty | **Required for analysis** when Groq is primary or fallback. Server-side only. |
+| `GROQ_MODEL` | `qwen/qwen3.6-27b` | Groq model to use. |
+| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Groq's OpenAI-compatible endpoint. |
+| `LLM_PROVIDER` | `anthropic` | The STARTING primary. The live value is the owner's choice in `system_settings.active_ai_provider`, so switching providers is a setting rather than a redeploy. |
 | `SUPABASE_ANON_KEY` | empty | **Required.** Public key. Sent as `apikey` alongside each signed-in user's own access token, which is what makes Postgres apply their Row Level Security policies. Also used to verify a token against `/auth/v1/user`. Without it the library routes answer `503` rather than falling back to a key that bypasses RLS. |
 | `STORAGE_BUCKET` | `papers` | Private bucket for uploaded PDFs. |
 

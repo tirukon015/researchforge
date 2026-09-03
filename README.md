@@ -63,6 +63,10 @@ This is enforced in three places: the system prompt, the response schema's
 | Responsive | Works from mobile to desktop. |
 | Landing page | A public page at `/` describing the product. No account needed to read it. |
 | Accounts | Email and password, through Supabase Auth. Sign up, sign in, forgot password, reset password. Passwords never reach the ResearchForge database. |
+| Google sign-in | "Continue with Google" on both account screens, completing at `/auth/callback`. |
+| Two AI providers | Anthropic Claude and Groq Qwen 3.6 27B. The owner picks one as primary; the other automatically becomes the fallback. |
+| Automatic fallback | Once per analysis, and only for rate limits and temporary provider failures. Never for a bad PDF, a validation failure or a missing key, which would fail identically on either vendor. |
+| Recorded provenance | Every new analysis stores which provider and model ACTUALLY produced it, whether the fallback was used, and how long it took. |
 | Private libraries | Every paper, analysis and review belongs to one account. Enforced by Postgres Row Level Security, not by the interface. |
 
 ## Technology
@@ -155,6 +159,50 @@ GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 CORS_ALLOWED_ORIGINS=http://localhost:3000
 ```
 
+### AI architecture
+
+Two providers, one primary, automatic fallback to the other.
+
+```
+owner picks Claude  ->  primary Claude,  fallback Groq
+owner picks Groq    ->  primary Groq,    fallback Claude
+```
+
+There is no third "auto" option, because the fallback is not a choice: it is
+whichever provider was not chosen. The primary is stored in
+`system_settings.active_ai_provider` and only the owner can change it, enforced
+by the API and again by Row Level Security.
+
+**Fallback happens once per analysis, and only for retryable failures** - a
+rate limit or a temporary outage. It does not happen for an invalid PDF, a
+schema validation failure, or a missing API key: those fail the same way on
+either vendor, and retrying would spend a second quota to produce the same
+error while hiding the real cause.
+
+Every new analysis records the provider and model that ACTUALLY produced it. If
+Claude was primary but Groq wrote the result, the stored row says Groq.
+
+Gemini has been retired from the active workflow. `gemini_provider.py` remains
+on disk because analyses produced by it are still in the database; nothing
+routes to it, and its historical records are unchanged.
+
+**This is not RAG.** The pipeline is whole-document extraction followed by
+grounded generation. Jina, pgvector and the `chunks` table exist as scaffolding
+that nothing calls.
+
+## AI providers
+
+Analysis needs at least one of these. Whichever is primary, the other is the
+automatic fallback:
+
+```
+ANTHROPIC_API_KEY=YOUR_ANTHROPIC_KEY     # console.anthropic.com
+GROQ_API_KEY=YOUR_GROQ_KEY               # console.groq.com
+```
+
+Optional, with sensible defaults: `ANTHROPIC_MODEL` (`claude-opus-5`),
+`GROQ_MODEL` (`qwen/qwen3.6-27b`).
+
 To sign in and save papers you also need a Supabase project. Backend (`.env`):
 
 ```
@@ -181,7 +229,7 @@ server side only and never reach the browser.
 ## Testing
 
 ```bash
-pytest                     # 333 tests, fully offline, no API key required
+pytest                     # 431 tests, fully offline, no API key required
 ruff check src tests       # lint
 cd app && npm run build && npm run typecheck
 ```
