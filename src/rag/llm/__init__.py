@@ -13,6 +13,8 @@ not construct one, and `active_ai_provider` cannot be set to it. Historical
 `model_used` values are left exactly as they were recorded.
 """
 
+from collections.abc import Collection
+
 from src.config import Settings
 from src.rag.llm.base import (
     LLMCredentialsError,
@@ -89,14 +91,33 @@ def build_provider(provider: str, settings: Settings) -> LLMProvider:
     )
 
 
-def build_routed_provider(primary: str, settings: Settings) -> RoutedLLMProvider:
+def build_routed_provider(
+    primary: str,
+    settings: Settings,
+    enabled: Collection[str] | None = None,
+) -> RoutedLLMProvider:
     """Build the primary provider with the OTHER one as its fallback.
 
     Build one PER ANALYSIS: the router remembers whether it has switched, and
     that per-instance state is what limits an analysis to a single change of
     model (see `src/rag/llm/router.py`).
 
-    A fallback that has no API key is simply absent rather than an error. Its
+    `enabled` is the set of providers the OWNER permits, from
+    `system_settings.enabled_ai_providers`. A provider that is not in it is
+    never constructed, so the router has no way to reach it - the guarantee is
+    structural rather than a check somebody has to remember. `None` means "no
+    restriction", which is what a deployment without the setting behaves as,
+    and is also how every existing caller behaves unchanged.
+
+    Two distinct refusals, which need different words:
+
+      * the PRIMARY is disabled -> a configuration error. Nothing can run, and
+        the owner is the only person who can fix it.
+      * the FALLBACK is disabled -> not an error at all. The analysis runs on
+        the primary with nowhere to fail over to, which is exactly what the
+        owner asked for by switching the other one off.
+
+    A fallback that has no API key is likewise absent rather than an error. Its
     key belongs to a provider the owner may not have signed up for, and
     refusing to run at all would make the second vendor mandatory - the exact
     opposite of what a fallback is for.
@@ -107,12 +128,35 @@ def build_routed_provider(primary: str, settings: Settings) -> RoutedLLMProvider
             f"Unknown AI provider {primary!r}. ResearchForge supports {' and '.join(PROVIDERS)}."
         )
 
+    permitted = (
+        PROVIDERS if enabled is None else {p.strip().lower() for p in enabled if p and p.strip()}
+    )
+
+    if not permitted:
+        # Unreachable through the API, which refuses an empty set, and
+        # unrepresentable in the database, whose CHECK has no empty option.
+        # Handled anyway so a hand-edited configuration fails with a sentence
+        # rather than an IndexError somewhere further down.
+        raise LLMError(
+            "No AI provider is enabled. Enable at least one in Settings before analysing a paper."
+        )
+
+    if primary_key not in permitted:
+        raise LLMError(
+            f"{display_name(primary_key)} is the selected AI provider but has "
+            "been switched off. Enable it, or choose a different provider, in "
+            "Settings."
+        )
+
     fallback_key = OPPOSITE[primary_key]
 
     primary_provider = build_provider(primary_key, settings)
 
     fallback_provider: LLMProvider | None = None
-    if settings.has_credentials_for(fallback_key):
+    # The disabled case is deliberately silent: the owner turned it off, so an
+    # analysis running without a fallback is the intended behaviour, not a
+    # degraded one.
+    if fallback_key in permitted and settings.has_credentials_for(fallback_key):
         try:
             fallback_provider = build_provider(fallback_key, settings)
         except LLMError:

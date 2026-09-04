@@ -79,27 +79,49 @@ export default function OwnerAiSettings() {
     };
   }, []);
 
-  const choose = useCallback(
-    async (provider: string) => {
-      if (state.kind !== "ready" || provider === state.config.active_provider) return;
+  /** One place for both controls: they hit the same endpoint. */
+  const apply = useCallback(
+    async (update: { provider?: string; enabled?: string[] }) => {
       setSaving(true);
       setError(null);
       setSaved(false);
       try {
-        const config = await setAiConfig(provider);
+        const config = await setAiConfig(update);
         setState({ kind: "ready", config });
         setSaved(true);
       } catch (caught) {
+        // The server's refusal is already written for a person - it names the
+        // provider and the fix - so it is shown as-is rather than replaced
+        // with something vaguer.
         setError(
           caught instanceof Error
             ? caught.message
-            : "The provider could not be changed. Please try again.",
+            : "The AI configuration could not be changed. Please try again.",
         );
       } finally {
         setSaving(false);
       }
     },
-    [state],
+    [],
+  );
+
+  const choose = useCallback(
+    (provider: string) => {
+      if (state.kind !== "ready" || provider === state.config.active_provider) return;
+      void apply({ provider });
+    },
+    [state, apply],
+  );
+
+  const toggle = useCallback(
+    (key: string, enabled: boolean) => {
+      if (state.kind !== "ready") return;
+      const next = enabled
+        ? [...new Set([...state.config.enabled_providers, key])]
+        : state.config.enabled_providers.filter((p) => p !== key);
+      void apply({ enabled: next });
+    },
+    [state, apply],
   );
 
   // Nothing at all for a normal user. See the note at the top of the file.
@@ -122,6 +144,9 @@ export default function OwnerAiSettings() {
   }
 
   const { config } = state;
+  // The fallback provider exists but the owner has switched it off - a
+  // different situation from having no API key, and it needs different words.
+  const fallbackDisabled = !config.enabled_providers.includes(config.fallback_provider);
 
   return (
     <section className="section" aria-labelledby="owner-ai-heading">
@@ -146,7 +171,7 @@ export default function OwnerAiSettings() {
               <select
                 className="ownerselect"
                 value={config.active_provider}
-                onChange={(e) => void choose(e.target.value)}
+                onChange={(e) => choose(e.target.value)}
                 disabled={saving}
                 aria-label="Primary AI model"
               >
@@ -168,20 +193,73 @@ export default function OwnerAiSettings() {
                 Automatic. Whichever provider is not primary takes over if the
                 primary is rate limited or temporarily unavailable, once per
                 analysis. It is not used for invalid files or configuration
-                errors, which would fail the same way on either provider.
+                errors, which would fail the same way on either provider
+                {fallbackDisabled
+                  ? ", and it is switched off below, so an analysis that fails on the primary now fails rather than moving."
+                  : "."}
               </p>
             </div>
             <div className="settingrow__control">
               <p className="ownerfallback">
                 <strong>{config.fallback_provider_label}</strong>
-                <span className="faint"> (automatic)</span>
+                <span className="faint">
+                  {" "}
+                  {config.fallback_available ? "(automatic)" : "(not in use)"}
+                </span>
               </p>
               {!config.fallback_available && (
                 <p className="authfield__problem">
-                  No API key is configured for this provider, so no fallback is
-                  currently available.
+                  {fallbackDisabled
+                    ? "This provider is switched off, so nothing will fall back to it."
+                    : "No API key is configured for this provider, so no fallback is currently available."}
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* ---- availability ---- */}
+          <hr className="accountrule" />
+
+          <div className="settingrow">
+            <div className="settingrow__label">
+              <strong>AI provider availability</strong>
+              <p className="settingrow__hint">
+                A switched-off provider is not used for new analyses or as a
+                fallback. At least one must stay on, and the primary cannot be
+                switched off - make the other one primary first. Analyses
+                already saved keep the model that produced them.
+              </p>
+            </div>
+            <div className="settingrow__control">
+              <ul className="ownerproviders">
+                {config.providers.map((p) => (
+                  <li key={p.key} className="ownerprovider">
+                    <div className="ownerprovider__id">
+                      <strong>{p.label}</strong>
+                      <span className="ownerprovider__model">{p.model}</span>
+                      {p.is_primary && <span className="badge badge--accent">Primary</span>}
+                    </div>
+
+                    <label className="ownerprovider__switch">
+                      <input
+                        type="checkbox"
+                        checked={p.enabled}
+                        disabled={saving}
+                        onChange={(e) => toggle(p.key, e.target.checked)}
+                        aria-label={`${p.label} enabled`}
+                      />
+                      <span>{p.enabled ? "Enabled" : "Disabled"}</span>
+                    </label>
+
+                    {p.enabled && !p.has_credentials && (
+                      <p className="authfield__problem ownerprovider__note">
+                        Enabled, but the server has no API key for it, so it
+                        cannot actually run.
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 
@@ -194,8 +272,10 @@ export default function OwnerAiSettings() {
             <div className="notice notice--spaced authnotice--ok" role="status">
               <IconCheck size={16} />
               <p>
-                New analyses will use <strong>{config.active_provider_label}</strong>,
-                falling back to {config.fallback_provider_label}.
+                New analyses will use <strong>{config.active_provider_label}</strong>
+                {config.fallback_available
+                  ? `, falling back to ${config.fallback_provider_label}.`
+                  : ", with no fallback."}
               </p>
             </div>
           )}

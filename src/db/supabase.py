@@ -789,6 +789,45 @@ class SupabaseRepository(PaperRepository):
         value = str(rows[0].get("value") or "").strip().lower()
         return value or default
 
+    async def get_enabled_providers(self, default: list[str]) -> list[str]:
+        """Read the permitted set, stored as a sorted comma-separated value."""
+        response = await self._request(
+            "GET",
+            "/system_settings",
+            params={
+                "select": "value",
+                "key": "eq.enabled_ai_providers",
+                "limit": 1,
+            },
+        )
+        rows = response.json()
+        if not rows:
+            return list(default)
+        raw = str(rows[0].get("value") or "")
+        parsed = [p.strip().lower() for p in raw.split(",") if p.strip()]
+        # An unreadable or empty value falls back to the default rather than
+        # to "nothing enabled", which would take analysis down over a typo.
+        return parsed or list(default)
+
+    async def set_enabled_providers(self, providers: list[str], *, updated_by: str) -> None:
+        """Upsert the permitted set.
+
+        Sorted before writing so "both" has exactly one spelling and the
+        database's CHECK - which lists the three valid values literally - can
+        match it.
+        """
+        await self._request(
+            "POST",
+            "/system_settings",
+            headers={**self._headers, "Prefer": "resolution=merge-duplicates"},
+            json={
+                "key": "enabled_ai_providers",
+                "value": ",".join(sorted({p.strip().lower() for p in providers})),
+                "updated_by": updated_by,
+                "updated_at": datetime.now(UTC).isoformat(),
+            },
+        )
+
     async def set_active_provider(self, provider: str, *, updated_by: str) -> None:
         """Upsert the primary provider.
 

@@ -83,6 +83,7 @@ class Store:
         # makes it global - so it lives on the store, not on the per-user view.
         self.owners: set[str] = set()
         self.active_provider: str | None = None
+        self.enabled_providers: list[str] | None = None
 
     def new_id(self, prefix: str) -> str:
         self.next_id += 1
@@ -264,6 +265,12 @@ class RlsFakeRepository(PaperRepository):
 
     async def set_active_provider(self, provider: str, *, updated_by: str) -> None:
         self.store.active_provider = provider
+
+    async def get_enabled_providers(self, default: list[str]) -> list[str]:
+        return list(self.store.enabled_providers or default)
+
+    async def set_enabled_providers(self, providers: list[str], *, updated_by: str) -> None:
+        self.store.enabled_providers = sorted(providers)
 
 
 # --------------------------------------------------------------------------- #

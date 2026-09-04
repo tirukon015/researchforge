@@ -558,13 +558,26 @@ export function createCrossReview(
  * ApiError of kind "rejected".
  */
 
+export interface ProviderState {
+  key: string;
+  label: string;
+  model: string;
+  enabled: boolean;
+  is_primary: boolean;
+  /** Whether the SERVER has an API key. Enabled and unusable are different. */
+  has_credentials: boolean;
+}
+
 export interface AiConfig {
   active_provider: string;
   active_provider_label: string;
   fallback_provider: string;
   fallback_provider_label: string;
+  /** True only when the fallback has a key AND the owner permits it. */
   fallback_available: boolean;
   available_providers: string[];
+  enabled_providers: string[];
+  providers: ProviderState[];
 }
 
 export function getOwnerStatus(): Promise<{ is_owner: boolean }> {
@@ -575,11 +588,22 @@ export function getAiConfig(): Promise<AiConfig> {
   return libraryRequest<AiConfig>("/api/owner/ai-config");
 }
 
-export function setAiConfig(provider: string): Promise<AiConfig> {
+/**
+ * Change the primary provider, which providers are enabled, or both.
+ *
+ * Both are optional and the SERVER validates the resulting state as a whole,
+ * which is what lets "make Claude primary and switch Groq off" be a single
+ * request. Sent separately they would each be rejected, because either change
+ * alone leaves the configuration invalid.
+ */
+export function setAiConfig(update: {
+  provider?: string;
+  enabled?: string[];
+}): Promise<AiConfig> {
   return libraryRequest<AiConfig>("/api/owner/ai-config", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider }),
+    body: JSON.stringify(update),
   });
 }
 

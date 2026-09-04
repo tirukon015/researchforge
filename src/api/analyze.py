@@ -31,6 +31,7 @@ from src.db import PaperRepository, RepositoryError, get_repository
 from src.db.analysis_cache import get_analysis_cache
 from src.ingestion.pdf import PdfExtractionError, extract_document
 from src.rag.llm import (
+    PROVIDERS,
     LLMCredentialsError,
     LLMError,
     LLMProvider,
@@ -106,16 +107,23 @@ async def get_provider(
     needs a network connection or spends a token.
     """
     active = settings.llm_provider_name
+    enabled: list[str] | None = None
     if library is not None:
         try:
             active = await library.get_active_provider(active)
+            # Which providers the owner permits. A provider that is switched
+            # off is never constructed, so the router cannot reach it - see
+            # build_routed_provider.
+            enabled = await library.get_enabled_providers(list(PROVIDERS))
         except RepositoryError as exc:
             # An unreadable setting must not take analysis down. Fall back to
             # the deployment default and say so in the log, not to the user.
-            logger.warning("could not read the active AI provider: %s", exc)
+            # `enabled = None` means "no restriction", which is the behaviour
+            # before availability existed.
+            logger.warning("could not read the AI configuration: %s", exc)
 
     try:
-        return build_routed_provider(active, settings)
+        return build_routed_provider(active, settings, enabled)
     except LLMCredentialsError as exc:
         # A missing key is an operator problem, not the uploader's. The message
         # names the missing variable but never its value.

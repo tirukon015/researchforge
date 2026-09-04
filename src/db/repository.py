@@ -187,3 +187,20 @@ class PaperRepository(ABC):
     @abstractmethod
     async def set_active_provider(self, provider: str, *, updated_by: str) -> None:
         """Store the globally selected primary AI provider."""
+
+    @abstractmethod
+    async def get_enabled_providers(self, default: list[str]) -> list[str]:
+        """Which AI providers the owner permits at all.
+
+        A provider absent from this list is never called - not as primary and
+        not as a fallback. `default` is returned when nothing is stored yet, so
+        a deployment that predates the setting behaves exactly as before.
+        """
+
+    @abstractmethod
+    async def set_enabled_providers(self, providers: list[str], *, updated_by: str) -> None:
+        """Store which AI providers are permitted.
+
+        Never an empty list: an empty set has no correct behaviour, and both
+        the API and the database CHECK refuse it.
+        """

@@ -18,6 +18,19 @@ means the analysis service needs no knowledge of routing at all: it keeps
 calling `provider.generate_structured(...)` and the switching happens
 underneath. Adding fallback therefore changed no business logic.
 
+AVAILABILITY
+------------
+The owner can switch a provider OFF entirely. A provider that is off is never
+called - not as primary and not as a fallback - and that is enforced HERE, in
+the routing layer, rather than by hiding a control in the interface. A router
+built with no fallback simply has none: `_fallback` is None, and the "both
+failed" path cannot be reached because there is no second attempt to make.
+
+That is why availability is applied when the router is BUILT rather than
+checked when it is used. There is no branch inside `_call` that could be
+reached with a disabled provider, because a disabled provider was never put
+there.
+
 THE TWO RULES THAT KEEP THIS HONEST
 -----------------------------------
 **One switch per analysis, not one per call.** The router is built per request

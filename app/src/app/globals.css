@@ -3299,3 +3299,72 @@ body {
 .empty__body {
   overflow-wrap: anywhere;
 }
+
+/* ---------- owner: AI provider availability ---------- */
+
+.ownerproviders {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+/* One row per provider: identity on the left, the switch on the right. */
+.ownerprovider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+}
+
+.ownerprovider__id {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+/* The model is shown beside the vendor so the owner can see they are
+   switching a NAMED model on and off, not an abstraction. */
+.ownerprovider__model {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.ownerprovider__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ownerprovider__switch input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.ownerprovider__switch input:disabled {
+  cursor: not-allowed;
+}
+.ownerprovider__switch:has(input:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* A whole-row note, so it sits under both columns rather than squeezing
+   the switch. */
+.ownerprovider__note {
+  flex-basis: 100%;
+  margin: 0;
+}

@@ -124,6 +124,10 @@ class FakeRepository(PaperRepository):
         self.owners: set[str] = set()
         self.active_provider: str | None = None
         self.provider_set_by: str | None = None
+        # None means "nothing stored", so the caller's default applies - the
+        # same as a deployment that predates the availability setting.
+        self.enabled_providers: list[str] | None = None
+        self.enabled_set_by: str | None = None
 
     def _guard(self):
         if self.fail_with is not None:
@@ -263,6 +267,13 @@ class FakeRepository(PaperRepository):
     async def set_active_provider(self, provider: str, *, updated_by: str) -> None:
         self.active_provider = provider
         self.provider_set_by = updated_by
+
+    async def get_enabled_providers(self, default: list[str]) -> list[str]:
+        return list(self.enabled_providers) if self.enabled_providers is not None else list(default)
+
+    async def set_enabled_providers(self, providers: list[str], *, updated_by: str) -> None:
+        self.enabled_providers = sorted(providers)
+        self.enabled_set_by = updated_by
 
 
 @pytest.fixture
