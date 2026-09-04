@@ -102,11 +102,13 @@ export default function ResearchBackdrop() {
           <line x1="96" y1="300" x2="150" y2="372" />
           <line x1="150" y1="372" x2="238" y2="316" />
         </g>
+        {/* The nodes are tiny PAGES, not dots: a citation graph links
+            papers, and a rectangle says that where a circle does not. */}
         <g className="rbg-node">
-          <circle cx="96" cy="300" r="3.5" />
-          <circle cx="176" cy="252" r="3.5" />
-          <circle cx="238" cy="316" r="3.5" />
-          <circle cx="150" cy="372" r="3.5" />
+          <rect x="91" y="294" width="10" height="12" rx="1" />
+          <rect x="171" y="246" width="10" height="12" rx="1" />
+          <rect x="233" y="310" width="10" height="12" rx="1" />
+          <rect x="145" y="366" width="10" height="12" rx="1" />
         </g>
       </svg>
 
@@ -149,10 +151,11 @@ export default function ResearchBackdrop() {
           <line x1="70" y1="470" x2="70" y2="576" />
           <line x1="70" y1="576" x2="262" y2="576" />
           <polyline points="70,552 112,530 154,540 196,494 238,478" />
-          <circle cx="112" cy="530" r="2.6" />
-          <circle cx="154" cy="540" r="2.6" />
-          <circle cx="196" cy="494" r="2.6" />
-          <circle cx="238" cy="478" r="2.6" />
+          {/* Plotted points as small ticks rather than dots. */}
+          <line x1="112" y1="526" x2="112" y2="534" />
+          <line x1="154" y1="536" x2="154" y2="544" />
+          <line x1="196" y1="490" x2="196" y2="498" />
+          <line x1="238" y1="474" x2="238" y2="482" />
         </g>
 
         {/* An annotated document, lower right, with a margin note. */}
@@ -166,11 +169,12 @@ export default function ResearchBackdrop() {
           <rect className="rbg-mark" x="112" y="776" width="66" height="9" rx="2" />
           <line x1="112" y1="800" x2="222" y2="800" />
         </g>
+        {/* A margin note tethered to the annotated passage. */}
         <g className="rbg-link">
-          <line x1="246" y1="780" x2="284" y2="748" />
+          <line x1="246" y1="780" x2="282" y2="750" />
         </g>
         <g className="rbg-node">
-          <circle cx="286" cy="746" r="3" />
+          <rect x="280" y="742" width="9" height="11" rx="1" />
         </g>
       </svg>
     </div>

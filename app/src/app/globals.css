@@ -2909,10 +2909,9 @@ code {
   opacity: 0.2;
   stroke-width: 1.4;
 }
-.rbg-chart circle {
-  opacity: 0.24;
-  fill: var(--accent);
-  stroke: none;
+.rbg-chart line:last-of-type,
+.rbg-chart line {
+  opacity: 0.14;
 }
 
 /* A reference network: papers citing papers. Kept to four nodes and
@@ -2920,7 +2919,8 @@ code {
 .rbg-link line {
   opacity: 0.12;
 }
-.rbg-node circle {
+/* Citation nodes are small pages, not dots - see ResearchBackdrop.tsx. */
+.rbg-node rect {
   opacity: 0.2;
   fill: var(--accent);
   stroke: none;
@@ -2967,4 +2967,335 @@ code {
 .shell {
   position: relative;
   z-index: 1;
+}
+
+/* ============================================================
+   Content-aware decoration INSIDE existing cards
+   ============================================================
+   The empty corner of a card is used to restate what that card is
+   about: stacked pages on "Papers analysed", an open book on
+   "Literature reviews", a magnifier on "Discover". The motif is
+   chosen from the card's own meaning, so nothing is generic and
+   nothing repeats.
+
+   HOW IT ADDS NOTHING TO THE MARKUP
+   Every motif is a ::after pseudo-element on a class that already
+   exists. No component is edited, no element is added, and no
+   existing declaration is changed - this block only appends.
+
+   HOW IT STAYS BEHIND THE CONTENT
+   The pseudo-element sits at z-index 0 and the card's own children
+   are lifted to 1. `position: relative` and `overflow: hidden` on
+   the card are stacking and clipping only: neither moves anything
+   or alters a dimension.
+
+   WHY MASK RATHER THAN A BACKGROUND IMAGE
+   An SVG in `background-image` carries its own fixed colour and
+   would be wrong in one of the two themes. As a `mask`, the shape
+   only cuts out `var(--accent)` - so every motif follows the theme
+   token automatically, exactly like the outer backdrop.
+   ============================================================ */
+
+/* Shared behaviour for every in-card motif. */
+.stat::after,
+.step::after,
+.drop::after,
+.empty::after,
+.lp-feature::after {
+  content: "";
+  position: absolute;
+  /* Decoration only: it can never take a click meant for the card. */
+  pointer-events: none;
+  z-index: 0;
+  background-color: var(--accent);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+/* Stacking + clipping only. No dimension, spacing or colour changes. */
+.stat,
+.step,
+.drop,
+.empty,
+.lp-feature {
+  position: relative;
+  overflow: hidden;
+}
+
+/* The card's real content paints over its motif, always. */
+.stat > *,
+.step > *,
+.drop > *,
+.empty > *,
+.lp-feature > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ------------------------------------------------------------
+   Overview metric cards
+   ------------------------------------------------------------
+   Matched by position, because the alternative is editing the
+   StatCard component and the brief asks for the cards to be left
+   alone. The order is fixed in app/dashboard/page.tsx:
+
+     1 Papers analysed  2 Research gaps
+     3 Literature reviews  4 Saved papers
+
+   A reorder would mismatch the motifs - cosmetic only, nothing
+   functional depends on it.
+   ------------------------------------------------------------ */
+
+.stat::after {
+  right: -6px;
+  bottom: -8px;
+  width: 74px;
+  height: 74px;
+  opacity: 0.09;
+}
+
+/* 1. Papers analysed -> a stack of pages, offset. */
+.stats > .stat:nth-child(1)::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Crect x='6' y='14' width='34' height='44' rx='2'/%3E%3Crect x='14' y='8' width='34' height='44' rx='2'/%3E%3Cline x1='22' y1='20' x2='40' y2='20'/%3E%3Cline x1='22' y1='28' x2='40' y2='28'/%3E%3Cline x1='22' y1='36' x2='34' y2='36'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Crect x='6' y='14' width='34' height='44' rx='2'/%3E%3Crect x='14' y='8' width='34' height='44' rx='2'/%3E%3Cline x1='22' y1='20' x2='40' y2='20'/%3E%3Cline x1='22' y1='28' x2='40' y2='28'/%3E%3Cline x1='22' y1='36' x2='34' y2='36'/%3E%3C/svg%3E");
+}
+
+/* 2. Research gaps -> text rules with a marked BREAK between them. */
+.stats > .stat:nth-child(2)::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Cline x1='8' y1='14' x2='56' y2='14'/%3E%3Cline x1='8' y1='24' x2='48' y2='24'/%3E%3Crect x='8' y='32' width='30' height='8' fill='black' stroke='none'/%3E%3Cline x1='8' y1='50' x2='56' y2='50'/%3E%3Cline x1='44' y1='30' x2='44' y2='42'/%3E%3Cline x1='56' y1='30' x2='56' y2='42'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Cline x1='8' y1='14' x2='56' y2='14'/%3E%3Cline x1='8' y1='24' x2='48' y2='24'/%3E%3Crect x='8' y='32' width='30' height='8' fill='black' stroke='none'/%3E%3Cline x1='8' y1='50' x2='56' y2='50'/%3E%3Cline x1='44' y1='30' x2='44' y2='42'/%3E%3Cline x1='56' y1='30' x2='56' y2='42'/%3E%3C/svg%3E");
+}
+
+/* 3. Literature reviews -> an open book. */
+.stats > .stat:nth-child(3)::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M32 18c-6-5-14-6-22-5v34c8-1 16 0 22 5 6-5 14-6 22-5V13c-8-1-16 0-22 5z'/%3E%3Cline x1='32' y1='18' x2='32' y2='52'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M32 18c-6-5-14-6-22-5v34c8-1 16 0 22 5 6-5 14-6 22-5V13c-8-1-16 0-22 5z'/%3E%3Cline x1='32' y1='18' x2='32' y2='52'/%3E%3C/svg%3E");
+}
+
+/* 4. Saved papers -> a page with a bookmark. */
+.stats > .stat:nth-child(4)::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Crect x='10' y='8' width='40' height='48' rx='2'/%3E%3Cline x1='18' y1='22' x2='34' y2='22'/%3E%3Cline x1='18' y1='31' x2='38' y2='31'/%3E%3Cpath d='M36 8v22l7-6 7 6V8'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Crect x='10' y='8' width='40' height='48' rx='2'/%3E%3Cline x1='18' y1='22' x2='34' y2='22'/%3E%3Cline x1='18' y1='31' x2='38' y2='31'/%3E%3Cpath d='M36 8v22l7-6 7 6V8'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------------------
+   Upload area
+   ------------------------------------------------------------
+   A PDF page with a turned corner, low and to the right of the
+   drop zone. The instruction and the Choose PDF button sit in the
+   centre and are lifted above it.
+   ------------------------------------------------------------ */
+
+.drop::after {
+  right: 22px;
+  bottom: -14px;
+  width: 128px;
+  height: 128px;
+  opacity: 0.07;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='1.6'%3E%3Cpath d='M14 6h26l12 12v40H14z'/%3E%3Cpath d='M40 6v12h12'/%3E%3Cline x1='22' y1='30' x2='44' y2='30'/%3E%3Cline x1='22' y1='38' x2='44' y2='38'/%3E%3Cline x1='22' y1='46' x2='36' y2='46'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='1.6'%3E%3Cpath d='M14 6h26l12 12v40H14z'/%3E%3Cpath d='M40 6v12h12'/%3E%3Cline x1='22' y1='30' x2='44' y2='30'/%3E%3Cline x1='22' y1='38' x2='44' y2='38'/%3E%3Cline x1='22' y1='46' x2='36' y2='46'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------------------
+   Empty states, including "No analysis yet" under Recent analysis
+   ------------------------------------------------------------
+   An annotated page with a marked passage and a magnifier: the
+   thing that is missing, drawn faintly where it will appear.
+   ------------------------------------------------------------ */
+
+.empty::after {
+  right: 18px;
+  bottom: -18px;
+  width: 150px;
+  height: 150px;
+  opacity: 0.06;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 72' fill='none' stroke='black' stroke-width='1.6'%3E%3Crect x='8' y='6' width='40' height='52' rx='2'/%3E%3Cline x1='16' y1='18' x2='40' y2='18'/%3E%3Crect x='16' y='24' width='16' height='5' fill='black' stroke='none'/%3E%3Cline x1='16' y1='36' x2='40' y2='36'/%3E%3Cline x1='16' y1='44' x2='34' y2='44'/%3E%3Ccircle cx='50' cy='46' r='11'/%3E%3Cline x1='58' y1='54' x2='66' y2='62'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 72' fill='none' stroke='black' stroke-width='1.6'%3E%3Crect x='8' y='6' width='40' height='52' rx='2'/%3E%3Cline x1='16' y1='18' x2='40' y2='18'/%3E%3Crect x='16' y='24' width='16' height='5' fill='black' stroke='none'/%3E%3Cline x1='16' y1='36' x2='40' y2='36'/%3E%3Cline x1='16' y1='44' x2='34' y2='44'/%3E%3Ccircle cx='50' cy='46' r='11'/%3E%3Cline x1='58' y1='54' x2='66' y2='62'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------------------
+   Workflow steps, and the landing page's feature cards
+   ------------------------------------------------------------
+   Both run Upload / Analyse / Discover / Review in that order, so
+   one set of four motifs serves both.
+   ------------------------------------------------------------ */
+
+.step::after,
+.lp-feature::after {
+  right: -10px;
+  bottom: -12px;
+  width: 86px;
+  height: 86px;
+  opacity: 0.07;
+}
+
+/* 1. Upload -> a page entering. */
+.steps > .step:nth-child(1)::after,
+.lp-features > .lp-feature:nth-child(1)::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M16 10h20l10 10v34H16z'/%3E%3Cpath d='M36 10v10h10'/%3E%3Cline x1='32' y1='44' x2='32' y2='28'/%3E%3Cpath d='M26 34l6-6 6 6'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M16 10h20l10 10v34H16z'/%3E%3Cpath d='M36 10v10h10'/%3E%3Cline x1='32' y1='44' x2='32' y2='28'/%3E%3Cpath d='M26 34l6-6 6 6'/%3E%3C/svg%3E");
+}
+
+/* 2. Analyse -> text with passages marked up. */
+.steps > .step:nth-child(2)::after,
+.lp-features > .lp-feature:nth-child(2)::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Cline x1='10' y1='16' x2='54' y2='16'/%3E%3Crect x='10' y='24' width='26' height='7' fill='black' stroke='none'/%3E%3Cline x1='10' y1='40' x2='54' y2='40'/%3E%3Crect x='10' y='48' width='18' height='7' fill='black' stroke='none'/%3E%3Cline x1='40' y1='48' x2='54' y2='48'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Cline x1='10' y1='16' x2='54' y2='16'/%3E%3Crect x='10' y='24' width='26' height='7' fill='black' stroke='none'/%3E%3Cline x1='10' y1='40' x2='54' y2='40'/%3E%3Crect x='10' y='48' width='18' height='7' fill='black' stroke='none'/%3E%3Cline x1='40' y1='48' x2='54' y2='48'/%3E%3C/svg%3E");
+}
+
+/* 3. Discover -> a magnifier over text: finding something. */
+.steps > .step:nth-child(3)::after,
+.lp-features > .lp-feature:nth-child(3)::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Cline x1='8' y1='14' x2='40' y2='14'/%3E%3Cline x1='8' y1='24' x2='32' y2='24'/%3E%3Ccircle cx='36' cy='38' r='13'/%3E%3Cline x1='45' y1='47' x2='56' y2='58'/%3E%3Cline x1='30' y1='38' x2='42' y2='38'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Cline x1='8' y1='14' x2='40' y2='14'/%3E%3Cline x1='8' y1='24' x2='32' y2='24'/%3E%3Ccircle cx='36' cy='38' r='13'/%3E%3Cline x1='45' y1='47' x2='56' y2='58'/%3E%3Cline x1='30' y1='38' x2='42' y2='38'/%3E%3C/svg%3E");
+}
+
+/* 4. Review -> an open book with a citation mark. */
+.steps > .step:nth-child(4)::after,
+.lp-features > .lp-feature:nth-child(4)::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M32 20c-5-4-12-5-19-4v30c7-1 14 0 19 4 5-4 12-5 19-4V16c-7-1-14 0-19 4z'/%3E%3Cline x1='32' y1='20' x2='32' y2='50'/%3E%3Cline x1='38' y1='28' x2='46' y2='28'/%3E%3Cline x1='38' y1='35' x2='44' y2='35'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M32 20c-5-4-12-5-19-4v30c7-1 14 0 19 4 5-4 12-5 19-4V16c-7-1-14 0-19 4z'/%3E%3Cline x1='32' y1='20' x2='32' y2='50'/%3E%3Cline x1='38' y1='28' x2='46' y2='28'/%3E%3Cline x1='38' y1='35' x2='44' y2='35'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------------------
+   Restraint
+   ------------------------------------------------------------ */
+
+/* Dark mode: the same shapes read far louder on a dark ground. */
+:root[data-theme="dark"] .stat::after,
+:root[data-theme="dark"] .step::after,
+:root[data-theme="dark"] .drop::after,
+:root[data-theme="dark"] .empty::after,
+:root[data-theme="dark"] .lp-feature::after {
+  opacity: 0.05;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .stat::after,
+  :root:not([data-theme="light"]) .step::after,
+  :root:not([data-theme="light"]) .drop::after,
+  :root:not([data-theme="light"]) .empty::after,
+  :root:not([data-theme="light"]) .lp-feature::after {
+    opacity: 0.05;
+  }
+}
+
+/* On a narrow screen a card is barely wider than its own text, so a
+   corner motif sits under it rather than beside it. */
+@media (max-width: 560px) {
+  .stat::after,
+  .step::after,
+  .drop::after,
+  .empty::after,
+  .lp-feature::after {
+    display: none;
+  }
+}
+
+@media print {
+  .stat::after,
+  .step::after,
+  .drop::after,
+  .empty::after,
+  .lp-feature::after {
+    display: none;
+  }
+}
+
+/* ============================================================
+   Mobile corrections
+   ============================================================
+   Two are fixes to problems introduced earlier in this project,
+   and one is a safety net that should always have been there.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. The account menu was widening the header
+   ------------------------------------------------------------
+   `.account__name` had no mobile rule, so on a narrow screen the
+   header carried: brand + wordmark, the theme toggle, an avatar
+   AND a name up to 13rem wide, and the menu button. That is more
+   than a 360px viewport holds, and it pushed the page sideways.
+
+   The avatar alone identifies the account at this size, and the
+   panel it opens still shows the full name and email - so nothing
+   is lost by dropping the inline copy. Hidden at the same 900px
+   breakpoint where the navigation itself collapses, so the header
+   changes shape once rather than twice.
+   ------------------------------------------------------------ */
+@media (max-width: 900px) {
+  .account__name {
+    display: none;
+  }
+  .account__trigger {
+    /* With the name gone the trigger is just the avatar; the extra
+       right padding would leave it looking lopsided. */
+    padding: 0.25rem;
+    max-width: none;
+  }
+}
+
+@media (max-width: 380px) {
+  /* At the very bottom of the range every pixel in the header is
+     contested. Tightening the gaps is enough to keep all four
+     controls on one line without hiding any of them. */
+  .topnav__inner {
+    gap: 0.6rem;
+    padding: 0 0.75rem;
+  }
+  .topnav__actions {
+    gap: 0.35rem;
+  }
+}
+
+/* ------------------------------------------------------------
+   2. Card motifs must not clip content on small screens
+   ------------------------------------------------------------
+   The decorative motifs need `overflow: hidden` so a corner
+   drawing is trimmed to its card. But `overflow: hidden` also
+   trims CONTENT, and on a narrow screen a long word or a wide
+   control inside a card is exactly the thing that overflows.
+
+   Below 560px the motifs are hidden anyway, so the clipping that
+   serves them is pure risk. It is scoped to the range where they
+   actually appear.
+   ------------------------------------------------------------ */
+@media (max-width: 560px) {
+  .stat,
+  .step,
+  .drop,
+  .empty,
+  .lp-feature {
+    overflow: visible;
+  }
+}
+
+/* ------------------------------------------------------------
+   3. Nothing may scroll the page sideways
+   ------------------------------------------------------------
+   A safety net, not a substitute for the fixes above: one
+   mis-sized element should degrade into a clipped corner rather
+   than into a page the reader can drag off-centre, with the
+   header sliding away from the content beneath it.
+
+   `clip` rather than `hidden`, deliberately. `overflow-x: hidden`
+   on the body makes it a scroll container, which silently breaks
+   `position: sticky` on the header. `clip` trims without creating
+   one, so the sticky header keeps working.
+   ------------------------------------------------------------ */
+html,
+body {
+  overflow-x: clip;
+}
+
+/* Long unbroken strings - a DOI, a URL, a filename with no spaces -
+   are the usual cause of a single wide element. These are the
+   places user-supplied text lands. */
+.papercard__title,
+.papercard__meta,
+.filecard__name,
+.kv dd,
+.empty__body {
+  overflow-wrap: anywhere;
 }
