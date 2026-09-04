@@ -20,6 +20,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from src.api.auth import (
+    _CACHE_TTL_SECONDS,
     AuthUser,
     bearer_token,
     require_user,
@@ -343,6 +344,69 @@ class TestVerificationCache:
         for _ in range(2):
             with pytest.raises(HTTPException):
                 run(verify_token(TOKEN, settings()))
+        assert len(seen) == 2
+
+
+class TestLogoutTakesEffect:
+    """A signed-out token must stop working, and quickly.
+
+    REGRESSION TEST. A live logout test against production caught that the
+    verification cache kept a revoked token valid for the rest of its window,
+    which was then 30 seconds. The cache is a latency optimisation and must
+    never become a way to keep a dead session alive.
+    """
+
+    def test_the_trusted_window_is_small_enough_for_a_logout_to_mean_something(
+        self,
+    ) -> None:
+        """Asserted as a NUMBER, because the comment above it used to claim
+        revocation was 'effectively immediate' while the value said 30s. A
+        constant that documentation contradicts is worse than no comment."""
+        from src.api.auth import _CACHE_TTL_SECONDS
+
+        assert _CACHE_TTL_SECONDS <= 5.0
+
+    def test_a_revoked_token_is_refused_once_the_window_passes(self, gotrue) -> None:
+        """Supabase starts refusing the token the moment it is revoked; this
+        checks WE then refuse it too, rather than serving it from cache."""
+        import src.api.auth as auth_module
+
+        state = {"revoked": False}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if state["revoked"]:
+                return httpx.Response(401, json={"message": "invalid JWT"})
+            return httpx.Response(200, json=USER_PAYLOAD)
+
+        gotrue(handler)
+
+        assert run(verify_token(TOKEN, settings())).id == USER_PAYLOAD["id"]
+
+        # The user signs out. Supabase now rejects the token.
+        state["revoked"] = True
+
+        # Simulate the cache entry ageing out, rather than sleeping for real:
+        # a test that waits five seconds gets deleted by whoever runs it next.
+        expires_at, user = auth_module._CACHE[TOKEN]
+        auth_module._CACHE[TOKEN] = (expires_at - _CACHE_TTL_SECONDS - 1, user)
+
+        with pytest.raises(HTTPException) as raised:
+            run(verify_token(TOKEN, settings()))
+        assert raised.value.status_code == 401
+
+    def test_an_expired_entry_is_not_served_from_cache(self, gotrue) -> None:
+        """The mechanism the test above relies on, checked directly: an entry
+        past its expiry must cause a fresh call, not a cache hit."""
+        import src.api.auth as auth_module
+
+        seen = gotrue(lambda r: httpx.Response(200, json=USER_PAYLOAD))
+        run(verify_token(TOKEN, settings()))
+        assert len(seen) == 1
+
+        expires_at, user = auth_module._CACHE[TOKEN]
+        auth_module._CACHE[TOKEN] = (expires_at - _CACHE_TTL_SECONDS - 1, user)
+
+        run(verify_token(TOKEN, settings()))
         assert len(seen) == 2
 
 

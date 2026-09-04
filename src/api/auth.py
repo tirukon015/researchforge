@@ -54,11 +54,24 @@ logger = logging.getLogger(__name__)
 
 # How long a verified token is trusted without re-asking Supabase.
 #
-# Short on purpose. This is the window in which a signed-out or banned user
-# could still be served, so it is measured in seconds rather than minutes.
-# Thirty seconds collapses one page's burst of calls into a single check while
-# keeping revocation effectively immediate from a person's point of view.
-_CACHE_TTL_SECONDS = 30.0
+# THIS IS THE WINDOW IN WHICH A SIGNED-OUT TOKEN STILL WORKS, so it is stated
+# as a bound rather than described as "immediate".
+#
+# It was 30 seconds, and a live logout test caught what that actually means: a
+# token used just before signing out kept working for the rest of the window.
+# For a logout on a shared computer that is too long - "log out" has to mean it.
+#
+# Five seconds is the smallest value that still does the job the cache exists
+# for. One page load fires several API calls within about a second, so this
+# collapses that burst into a single verification while bounding post-logout
+# validity to roughly the time it takes to close the tab.
+#
+# It cannot be driven to zero without giving up the cache entirely, and it
+# cannot be fixed by evicting on sign-out either: the API runs as several
+# serverless instances, so evicting on the one that handled the request would
+# leave the others still holding it - a fix that LOOKS complete and is racy.
+# A small, measured, documented bound is the honest answer.
+_CACHE_TTL_SECONDS = 5.0
 
 # Bounded so a flood of distinct tokens cannot grow this without limit. The
 # cache is a latency optimisation, never a source of truth, so evicting the
