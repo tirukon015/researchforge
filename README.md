@@ -229,7 +229,12 @@ server side only and never reach the browser.
 ## Testing
 
 ```bash
-pytest                     # 431 tests, fully offline, no API key required
+pytest                     # 439 tests, fully offline, no API key required
+cd app && npm test         # 16 frontend tests (redirect + open-redirect logic)
+
+# Optional: prove the provider keys and model IDs are real. Makes ONE small
+# call per provider, so it is opt-in rather than part of the default suite.
+RESEARCHFORGE_LIVE_PROVIDER_TEST=1 pytest tests/test_provider_smoke.py -v
 ruff check src tests       # lint
 cd app && npm run build && npm run typecheck
 ```
