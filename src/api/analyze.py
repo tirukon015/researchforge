@@ -28,7 +28,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from src.api.auth import AuthUser, require_user
 from src.config import Settings, get_settings
 from src.db import PaperRepository, RepositoryError, get_repository
-from src.ingestion.pdf import PdfExtractionError
+from src.db.analysis_cache import get_analysis_cache
+from src.ingestion.pdf import PdfExtractionError, extract_document
 from src.rag.llm import (
     LLMCredentialsError,
     LLMError,
@@ -37,8 +38,9 @@ from src.rag.llm import (
     LLMResponseError,
     build_routed_provider,
 )
-from src.schemas.analysis import AnalysisResponse
+from src.schemas.analysis import AnalysisResponse, DocumentInfo
 from src.services.analysis import analyse_paper
+from src.services.content_hash import ANALYSIS_VERSION, content_hash, is_hashable
 
 logger = logging.getLogger(__name__)
 
@@ -182,8 +184,68 @@ async def analyze(
     if file.content_type and file.content_type not in settings.allowed_file_types_list:
         logger.info("upload declared content-type %s", file.content_type)
 
+    # ---- extract ONCE, before deciding whether a model is needed at all ----
+    #
+    # The cache is keyed by the document's CONTENT, so the text has to exist
+    # before the lookup. Extracting here and passing the result into
+    # `analyse_paper` means a long PDF is still only read once per upload.
     try:
-        return analyse_paper(data=data, filename=filename, provider=provider, settings=settings)
+        document = extract_document(data, filename=filename)
+    except PdfExtractionError as exc:
+        logger.info("rejected upload %s: %s", filename, exc)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+
+    # ---- has this exact document been analysed before? ----
+    #
+    # Every failure here is swallowed into "no cache": a cache that is
+    # unreachable or misconfigured must make uploads slower and more
+    # expensive, never broken.
+    cache = get_analysis_cache(settings)
+    digest = content_hash(document.text) if is_hashable(document.text) else None
+
+    if cache is not None and digest is not None:
+        cached = await cache.get(digest, ANALYSIS_VERSION)
+        if cached is not None:
+            # CACHE HIT. No model is called and no quota is spent.
+            #
+            # The provenance returned describes the ORIGINAL run - the model
+            # that actually wrote these words - because that is the truthful
+            # answer to "what produced this analysis". `cache_hit` is what
+            # distinguishes it from a fresh one, and `processing_time_ms`
+            # stays the original figure rather than this request's much
+            # smaller one, which would misrepresent what the work costs.
+            logger.info("analysis cache hit for %s", filename)
+            return AnalysisResponse(
+                document=DocumentInfo(
+                    filename=filename,
+                    page_count=document.page_count,
+                    extracted_characters=document.character_count,
+                    chunk_count=1,
+                    truncated=False,
+                ),
+                summary=cached.summary,
+                research_gaps=cached.research_gaps,
+                literature_review=cached.literature_review,
+                model_used=cached.model_used,
+                model_provider=cached.model_provider,
+                fallback_used=cached.fallback_used,
+                fallback_provider=cached.fallback_provider,
+                processing_time_ms=cached.processing_time_ms,
+                cache_hit=True,
+            )
+
+    # ---- cache miss: analyse for real ----
+    try:
+        result = analyse_paper(
+            data=data,
+            filename=filename,
+            provider=provider,
+            settings=settings,
+            document=document,
+        )
+        result.cache_hit = False
     except PdfExtractionError as exc:
         logger.info("rejected upload %s: %s", filename, exc)
         raise HTTPException(
@@ -209,3 +271,19 @@ async def analyze(
     except LLMError as exc:
         logger.warning("generation failed for %s: %s", filename, exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    # ---- store it, but ONLY because it succeeded ----
+    #
+    # Everything that can go wrong has already raised above: a rate limit, a
+    # timeout, an unusable reply, a validation failure. Reaching this line
+    # means a complete, schema-valid analysis exists. Nothing else is ever
+    # written, because a cached failure would be served to every future upload
+    # of this paper and turn one bad minute into a permanent wrong answer.
+    if cache is not None and digest is not None:
+        await cache.put(
+            content_hash=digest,
+            analysis_version=ANALYSIS_VERSION,
+            analysis=result,
+        )
+
+    return result

@@ -81,6 +81,7 @@ class SavePaperRequest(BaseModel):
     fallback_used: bool | None = None
     fallback_provider: str | None = Field(default=None, max_length=50)
     processing_time_ms: int | None = Field(default=None, ge=0)
+    cache_hit: bool | None = None
 
 
 class CrossReviewRequest(BaseModel):
@@ -169,6 +170,7 @@ class PaperDetail(BaseModel):
     fallback_used: bool | None = None
     fallback_provider: str | None = None
     processing_time_ms: int | None = None
+    cache_hit: bool | None = None
 
 
 class ReviewPaperRef(BaseModel):

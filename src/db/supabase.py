@@ -324,6 +324,7 @@ class SupabaseRepository(PaperRepository):
             fallback_used=analysis.get("fallback_used") if analysis else None,
             fallback_provider=analysis.get("fallback_provider") if analysis else None,
             processing_time_ms=analysis.get("processing_time_ms") if analysis else None,
+            cache_hit=analysis.get("cache_hit") if analysis else None,
         )
 
     # PostgREST embeds the related analysis in one round trip, which is what
@@ -339,7 +340,9 @@ class SupabaseRepository(PaperRepository):
         "model_used,summary,research_gaps,literature_review,chunk_count,truncated,created_at"
     )
     # Added by migration 004. Requested only while we believe they exist.
-    _ANALYSIS_PROVENANCE = "model_provider,fallback_used,fallback_provider,processing_time_ms"
+    _ANALYSIS_PROVENANCE = (
+        "model_provider,fallback_used,fallback_provider,processing_time_ms,cache_hit"
+    )
 
     @staticmethod
     def _analysis_embed() -> str:
@@ -433,6 +436,7 @@ class SupabaseRepository(PaperRepository):
                     "fallback_used": request.fallback_used,
                     "fallback_provider": request.fallback_provider,
                     "processing_time_ms": request.processing_time_ms,
+                    "cache_hit": request.cache_hit,
                 }
             )
         try:
@@ -452,6 +456,7 @@ class SupabaseRepository(PaperRepository):
                     "fallback_used",
                     "fallback_provider",
                     "processing_time_ms",
+                    "cache_hit",
                 ):
                     analysis_payload.pop(key, None)
                 await self._request("POST", "/analyses", json=analysis_payload)

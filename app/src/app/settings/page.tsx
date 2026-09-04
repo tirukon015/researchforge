@@ -16,6 +16,7 @@ import Image from "next/image";
 
 import BackendStatus from "@/components/BackendStatus";
 import { IconInfo } from "@/components/Icons";
+import AccountSettings from "@/components/AccountSettings";
 import OwnerAiSettings from "@/components/OwnerAiSettings";
 import ThemeToggle from "@/components/ThemeToggle";
 import { API_BASE_LABEL } from "@/lib/api";
@@ -44,6 +45,10 @@ export default function SettingsPage() {
         </div>
         <BackendStatus />
       </header>
+
+      {/* First, because "change my name" and "sign out" are what people
+          actually open Settings for. Renders nothing when signed out. */}
+      <AccountSettings />
 
       <section className="section" aria-labelledby="appearance-heading">
         <div className="section__head">

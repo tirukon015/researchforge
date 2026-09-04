@@ -2740,3 +2740,23 @@ code {
   border-radius: var(--r-md);
   background: var(--panel-2);
 }
+
+/* ---------- account settings ---------- */
+
+/* Separates the name form from the read-only email beneath it, inside one
+   card. A second card would imply they are unrelated settings. */
+.accountrule {
+  border: none;
+  border-top: 1px solid var(--border-soft);
+  margin: 1.35rem 0;
+}
+
+/* A read-only field must not look like an editable one. Muted text and a
+   not-allowed cursor say "this is information" before anyone clicks it. */
+.accountreadonly {
+  width: 100%;
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+}

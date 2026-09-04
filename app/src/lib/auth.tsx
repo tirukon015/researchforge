@@ -80,6 +80,24 @@ export interface AuthValue {
   signOut: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
+
+  /** Change this account's own display name. Nobody else's - see below. */
+  updateFullName: (fullName: string) => Promise<void>;
+  /**
+   * Change this account's own password, proving the current one first.
+   * Rejects with a clear message for an account that has no password.
+   */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /**
+   * How this account signs in: "email", "google", or both.
+   *
+   * Read from the account's identities. A Google-only account has NO password,
+   * so the Settings page must not offer to change one - telling someone their
+   * current password is wrong when they have never had one is worse than
+   * saying plainly that they sign in with Google.
+   */
+  signInMethods: string[];
+  hasPassword: boolean;
 }
 
 export interface SignUpInput {
@@ -405,6 +423,92 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [requireClient],
   );
 
+  /**
+   * Update the signed-in account's display name.
+   *
+   * SECURITY: there is no user id parameter, and there deliberately cannot be
+   * one. `updateUser` acts on whoever the client's current access token
+   * belongs to - the identity is taken from the token, never from an argument.
+   * A caller cannot name someone else's account because there is nowhere to
+   * put the name, and Supabase would reject it if there were.
+   *
+   * The email is untouched: `data` writes user_metadata only.
+   */
+  const updateFullName = useCallback(
+    async (fullName: string) => {
+      const supabase = requireClient();
+      const trimmed = fullName.trim();
+      if (!trimmed) {
+        throw new AuthError("Please enter a name.");
+      }
+      if (trimmed.length > 120) {
+        throw new AuthError("That name is too long. Please use 120 characters or fewer.");
+      }
+      const { error } = await supabase.auth.updateUser({
+        data: { full_name: trimmed },
+      });
+      if (error) {
+        throw new AuthError(
+          humanError(error, "Your name could not be updated. Please try again."),
+        );
+      }
+      // onAuthStateChange fires with the refreshed user, so the header and
+      // the account menu pick the new name up without a reload.
+    },
+    [requireClient],
+  );
+
+  /**
+   * Change the signed-in account's password.
+   *
+   * WHY THE CURRENT PASSWORD IS CHECKED FIRST
+   * -----------------------------------------
+   * `updateUser({ password })` does not require it. That means an unattended
+   * signed-in browser is enough to take an account over permanently. Verifying
+   * the current password with `signInWithPassword` first closes that: it is a
+   * genuine re-authentication against Supabase, and a wrong password fails
+   * before anything is changed.
+   *
+   * The verification signs in as the SAME account, so the session is replaced
+   * with an equivalent one rather than disturbed.
+   *
+   * Neither password is stored, logged, or sent anywhere except Supabase.
+   */
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      const supabase = requireClient();
+      const address = (
+        state.kind === "authenticated" ? (state.user.email ?? "") : ""
+      ).trim();
+      if (!address) {
+        throw new AuthError(
+          "This account has no email address, so its password cannot be changed here.",
+        );
+      }
+
+      const { error: reauth } = await supabase.auth.signInWithPassword({
+        email: address,
+        password: currentPassword,
+      });
+      if (reauth) {
+        // Deliberately specific, unlike the sign-in form: the person has
+        // already proved who they are, so "that is not your current password"
+        // discloses nothing and is the only useful thing to say.
+        throw new AuthError(
+          humanError(reauth, "That is not your current password. Please try again."),
+        );
+      }
+
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        throw new AuthError(
+          humanError(error, "Your password could not be updated. Please try again."),
+        );
+      }
+    },
+    [requireClient, state],
+  );
+
   const signOut = useCallback(async () => {
     const supabase = getSupabase();
     // Clear locally first. If the network call fails, the person still ends up
@@ -456,6 +560,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const user = state.kind === "authenticated" ? state.user : null;
 
   const value = useMemo<AuthValue>(() => {
+    // Which providers this account can sign in with. `identities` is the
+    // authoritative list; app_metadata.providers is a convenience copy and is
+    // absent on some accounts, so identities comes first.
+    const identities = user?.identities ?? [];
+    const fromIdentities = identities
+      .map((i) => i.provider)
+      .filter((p): p is string => typeof p === "string");
+    const fromAppMetadata = Array.isArray(user?.app_metadata?.providers)
+      ? (user.app_metadata.providers as unknown[]).filter(
+          (p): p is string => typeof p === "string",
+        )
+      : [];
+    const methods = Array.from(new Set([...fromIdentities, ...fromAppMetadata]));
+
     const metadata = (user?.user_metadata ?? {}) as Record<string, unknown>;
     const named = [metadata.full_name, metadata.name].find(
       (v): v is string => typeof v === "string" && v.trim() !== "",
@@ -467,9 +585,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoading: state.kind === "loading",
       displayName: named?.trim() || user?.email || "",
       email: user?.email ?? "",
+      signInMethods: methods,
+      hasPassword: methods.includes("email"),
       signUp,
       signIn,
       signInWithGoogle,
+      updateFullName,
+      changePassword,
       signOut,
       requestPasswordReset,
       updatePassword,
@@ -480,6 +602,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp,
     signIn,
     signInWithGoogle,
+    updateFullName,
+    changePassword,
     signOut,
     requestPasswordReset,
     updatePassword,

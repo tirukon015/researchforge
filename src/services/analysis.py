@@ -92,14 +92,22 @@ def analyse_paper(
     filename: str,
     provider: LLMProvider,
     settings: Settings,
+    document: ExtractedDocument | None = None,
 ) -> AnalysisResponse:
     """Run the full analysis on an uploaded PDF.
+
+    `document` lets a caller that has ALREADY extracted the text pass it in
+    rather than have it extracted a second time. The analysis-cache path needs
+    the text before deciding whether to call a model at all, and extracting a
+    long PDF twice per upload would be pure waste. Omitted, this behaves
+    exactly as before.
 
     Raises `PdfExtractionError` for bad input and `LLMError` for generation
     failures. Both are translated to HTTP status codes by the API layer; this
     function never returns a partial or invented result.
     """
-    document = extract_document(data, filename=filename)
+    if document is None:
+        document = extract_document(data, filename=filename)
     content, chunk_count = _build_analysis_content(document, provider, settings)
 
     # Three independent calls. Deliberately sequential: they are unrelated, and

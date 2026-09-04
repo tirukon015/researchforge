@@ -155,3 +155,11 @@ class AnalysisResponse(BaseModel):
         ge=0,
         description="Measured wall-clock duration of the analysis. Never estimated.",
     )
+    cache_hit: bool | None = Field(
+        default=None,
+        description=(
+            "True when this result was reused from a previous analysis of the "
+            "SAME document rather than generated again. The provenance fields "
+            "above then describe the ORIGINAL run, not this request."
+        ),
+    )
