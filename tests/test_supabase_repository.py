@@ -686,7 +686,9 @@ class TestSchemaBehindTheCode:
     def setup_method(self) -> None:
         import src.db.supabase as module
 
-        module._PROVENANCE_COLUMNS_PRESENT = True
+        # Tier 2 = the newest schema. Reset per test, because the tier is
+        # module state that only ever counts down.
+        module._PROVENANCE_TIER = 2
 
     @staticmethod
     def _undefined_column(request: httpx.Request) -> httpx.Response:
@@ -699,11 +701,12 @@ class TestSchemaBehindTheCode:
         )
 
     def test_a_listing_survives_a_missing_provenance_column(self, _patch_client) -> None:
+        """A database with NEITHER migration still serves the library."""
         calls: list[httpx.Request] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
             calls.append(request)
-            if "model_provider" in str(request.url):
+            if "model_provider" in str(request.url) or "cache_hit" in str(request.url):
                 return self._undefined_column(request)
             return json_response([PAPER_ROW])
 
@@ -711,10 +714,36 @@ class TestSchemaBehindTheCode:
         items, _ = run(repo().list_papers())
 
         assert [i.title for i in items] == ["Attention Paper"]
-        # Asked once with the new columns, once without.
-        assert len(calls) == 2
-        assert "model_provider" in str(calls[0].url)
-        assert "model_provider" not in str(calls[1].url)
+        # Steps down one tier at a time: tier 2, tier 1, then the base columns.
+        assert len(calls) == 3
+        assert "cache_hit" not in str(calls[-1].url)
+        assert "model_provider" not in str(calls[-1].url)
+
+    def test_only_the_MISSING_tier_is_dropped(self, _patch_client) -> None:
+        """THE reason the tiers exist.
+
+        Migration 004 has run and 005 has not - the state this deployment is
+        actually in. Only `cache_hit` is missing, so only `cache_hit` may be
+        given up. An earlier all-or-nothing version dropped 004's provenance
+        too, blanking columns the database had perfectly.
+        """
+        calls: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(request)
+            if "cache_hit" in str(request.url):
+                return self._undefined_column(request)
+            return json_response([PAPER_ROW])
+
+        mock(_patch_client, handler)
+        items, _ = run(repo().list_papers())
+
+        assert [i.title for i in items] == ["Attention Paper"]
+        assert len(calls) == 2, "one step down, not two"
+        # 004's provenance is STILL requested. This is the assertion that
+        # would have failed before the tiers were introduced.
+        assert "model_provider" in str(calls[-1].url)
+        assert "cache_hit" not in str(calls[-1].url)
 
     def test_get_paper_survives_it_too(self, _patch_client) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
@@ -740,9 +769,12 @@ class TestSchemaBehindTheCode:
         run(repo().list_papers())
         run(repo().list_papers())
 
-        # One failed probe, then three successful narrower reads.
-        assert sum("model_provider" in str(c.url) for c in calls) == 1
-        assert len(calls) == 4
+        # The tier is learned ONCE. The first request probes down through the
+        # tiers (2 -> 1 -> 0, so three attempts); the two after it go straight
+        # to the working column list. Without the memo it would be 3 + 3 + 3.
+        assert len(calls) == 5
+        assert sum("model_provider" in str(c.url) for c in calls) == 2
+        assert ["model_provider" in str(c.url) for c in calls[-2:]] == [False, False]
 
     def test_a_paper_still_saves_without_the_provenance_columns(self, _patch_client) -> None:
         """The analysis matters; the metadata about it does not matter as much."""

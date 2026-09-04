@@ -76,17 +76,26 @@ class _SchemaBehindError(RepositoryError):
     """
 
 
-# Whether the database has migration 004's provenance columns on `analyses`.
+# How much of the analysis provenance this database actually has.
+#
+# The columns arrived across two migrations, and code can be deployed either
+# side of either one, so the degradation is per-TIER rather than all-or-nothing.
+# An earlier version dropped EVERY provenance column the moment one was
+# missing, which meant shipping migration 005's `cache_hit` would have blanked
+# migration 004's `model_provider` too, on a database that had 004 perfectly.
+#
+#   2  everything, including 005's cache_hit
+#   1  004's provenance, without cache_hit
+#   0  neither: the base columns only
 #
 # MODULE level, not per-instance: a repository is built per request, so an
-# instance flag would re-learn the same fact on every single call. This is
-# discovered once per warm process and then costs nothing.
+# instance flag would re-learn the same fact on every call. This is discovered
+# once per warm process and then costs nothing.
 #
-# It starts optimistic and is only ever turned OFF. The failure it guards
-# against is one-directional - a column cannot un-exist during a process's
-# lifetime - and a serverless cold start re-learns it anyway, so a deploy that
-# follows the migration picks the columns up without anyone doing anything.
-_PROVENANCE_COLUMNS_PRESENT = True
+# It only ever counts DOWN. A column cannot un-exist during a process's
+# lifetime, and a serverless cold start re-learns from the top, so running a
+# migration later picks the columns up with no intervention.
+_PROVENANCE_TIER = 2
 
 # PostgREST maps sort choices onto order clauses. Confining the mapping
 # here is what keeps `SortOrder` a product concept rather than a database
@@ -339,9 +348,11 @@ class SupabaseRepository(PaperRepository):
     _ANALYSIS_BASE = (
         "model_used,summary,research_gaps,literature_review,chunk_count,truncated,created_at"
     )
-    # Added by migration 004. Requested only while we believe they exist.
-    _ANALYSIS_PROVENANCE = (
-        "model_provider,fallback_used,fallback_provider,processing_time_ms,cache_hit"
+    # Provenance, newest tier last. Index 0 arrived with migration 004,
+    # index 1 with 005; `_PROVENANCE_TIER` is how many of them to ask for.
+    _PROVENANCE_TIERS = (
+        "model_provider,fallback_used,fallback_provider,processing_time_ms",
+        "cache_hit",
     )
 
     @staticmethod
@@ -349,36 +360,39 @@ class SupabaseRepository(PaperRepository):
         """The `analyses(...)` embed, matched to what the database actually has.
 
         Asking PostgREST for a column that does not exist fails the WHOLE
-        request with a 400, so this cannot simply always ask: deploying this
-        code before running migration 004 would take the entire library offline
-        rather than merely omitting four fields. `_detail` reads them with
-        `.get()`, so their absence is already harmless once they are not asked
-        for.
+        request with a 400, so this cannot simply always ask: deploying ahead
+        of a migration would take the entire library offline rather than
+        omitting a few fields. `_detail` reads them with `.get()`, so their
+        absence is already harmless once they are not asked for.
         """
-        columns = SupabaseRepository._ANALYSIS_BASE
-        if _PROVENANCE_COLUMNS_PRESENT:
-            columns = f"{columns},{SupabaseRepository._ANALYSIS_PROVENANCE}"
-        return f"analyses({columns})"
+        parts = [SupabaseRepository._ANALYSIS_BASE]
+        parts.extend(SupabaseRepository._PROVENANCE_TIERS[:_PROVENANCE_TIER])
+        return f"analyses({','.join(parts)})"
 
     async def _with_schema_fallback(self, attempt):
-        """Run `attempt`, retrying once without the provenance columns.
+        """Run `attempt`, stepping DOWN one provenance tier per failure.
 
-        `attempt` is called with no arguments and reads the module flag through
-        `_analysis_embed`, so the retry automatically asks for less.
+        One tier at a time rather than straight to nothing: a database with
+        migration 004 but not 005 keeps 004's provenance instead of losing it
+        because a newer column is absent. `attempt` reads the module tier
+        through `_analysis_embed`, so each retry simply asks for less.
         """
-        global _PROVENANCE_COLUMNS_PRESENT
-        try:
-            return await attempt()
-        except _SchemaBehindError:
-            if not _PROVENANCE_COLUMNS_PRESENT:
-                raise
-            logger.warning(
-                "the analyses table has no provenance columns; run migration "
-                "004 to record which model produced each analysis. Continuing "
-                "without them."
-            )
-            _PROVENANCE_COLUMNS_PRESENT = False
-            return await attempt()
+        global _PROVENANCE_TIER
+        while True:
+            try:
+                return await attempt()
+            except _SchemaBehindError:
+                if _PROVENANCE_TIER <= 0:
+                    # Nothing optional left to drop, so this is a real error
+                    # about a column that is not supposed to be missing.
+                    raise
+                _PROVENANCE_TIER -= 1
+                logger.warning(
+                    "the analyses table is missing a provenance column; "
+                    "continuing at tier %s. Run the outstanding migration to "
+                    "record it.",
+                    _PROVENANCE_TIER,
+                )
 
     # Most recent analysis per paper. `limit` on an embedded resource applies
     # per parent row, so this is one analysis each, not one across the page.
@@ -394,7 +408,7 @@ class SupabaseRepository(PaperRepository):
     # ---------- papers ----------
 
     async def save_paper(self, request: SavePaperRequest) -> PaperDetail:
-        global _PROVENANCE_COLUMNS_PRESENT
+        global _PROVENANCE_TIER
         doc = request.document
         paper_payload = {
             "title": request.title.strip() or request.filename,
@@ -426,40 +440,45 @@ class SupabaseRepository(PaperRepository):
             "chunk_count": doc.chunk_count,
             "truncated": doc.truncated,
         }
-        if _PROVENANCE_COLUMNS_PRESENT:
-            # Provenance. Omitted entirely - not sent as NULL - when the
-            # database predates migration 004, because PostgREST rejects an
-            # INSERT naming a column that does not exist.
+        # Provenance is OMITTED, not sent as NULL, for any tier this database
+        # lacks: PostgREST rejects an INSERT naming a column that does not
+        # exist, and one missing column would fail the entire write.
+        if _PROVENANCE_TIER >= 1:
             analysis_payload.update(
                 {
                     "model_provider": request.model_provider,
                     "fallback_used": request.fallback_used,
                     "fallback_provider": request.fallback_provider,
                     "processing_time_ms": request.processing_time_ms,
-                    "cache_hit": request.cache_hit,
                 }
             )
+        if _PROVENANCE_TIER >= 2:
+            analysis_payload["cache_hit"] = request.cache_hit
         try:
             try:
                 await self._request("POST", "/analyses", json=analysis_payload)
             except _SchemaBehindError:
-                # Migration 004 has not run. Drop the four provenance keys and
-                # save the analysis itself, which matters far more than the
-                # metadata about it.
-                _PROVENANCE_COLUMNS_PRESENT = False
+                # A provenance column this database does not have. Step down a
+                # tier at a time and keep trying: the ANALYSIS matters far more
+                # than the metadata about it, and a database with 004 but not
+                # 005 should still record 004's provenance.
+                saved = False
+                while _PROVENANCE_TIER > 0 and not saved:
+                    _PROVENANCE_TIER -= 1
+                    for column in self._PROVENANCE_TIERS[_PROVENANCE_TIER].split(","):
+                        analysis_payload.pop(column, None)
+                    try:
+                        await self._request("POST", "/analyses", json=analysis_payload)
+                        saved = True
+                    except _SchemaBehindError:
+                        continue
+                if not saved:
+                    raise
                 logger.warning(
-                    "saving without provenance columns; run migration 004 to "
-                    "record which model produced each analysis"
+                    "saved without some provenance columns (tier %s); run the "
+                    "outstanding migration to record them",
+                    _PROVENANCE_TIER,
                 )
-                for key in (
-                    "model_provider",
-                    "fallback_used",
-                    "fallback_provider",
-                    "processing_time_ms",
-                    "cache_hit",
-                ):
-                    analysis_payload.pop(key, None)
-                await self._request("POST", "/analyses", json=analysis_payload)
         except RepositoryError:
             # A paper row with no analysis is a half-saved record the user
             # would see as a broken library entry. Roll it back so the
