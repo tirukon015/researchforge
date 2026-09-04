@@ -66,6 +66,28 @@ from src.schemas.library import (
 
 logger = logging.getLogger(__name__)
 
+
+class _SchemaBehindError(RepositoryError):
+    """A column this code asks for does not exist in the database yet.
+
+    Internal to this module. Raised when PostgREST reports 42703
+    (undefined_column), which happens in the window between deploying code that
+    reads a new column and running the migration that adds it.
+    """
+
+
+# Whether the database has migration 004's provenance columns on `analyses`.
+#
+# MODULE level, not per-instance: a repository is built per request, so an
+# instance flag would re-learn the same fact on every single call. This is
+# discovered once per warm process and then costs nothing.
+#
+# It starts optimistic and is only ever turned OFF. The failure it guards
+# against is one-directional - a column cannot un-exist during a process's
+# lifetime - and a serverless cold start re-learns it anyway, so a deploy that
+# follows the migration picks the columns up without anyone doing anything.
+_PROVENANCE_COLUMNS_PRESENT = True
+
 # PostgREST maps sort choices onto order clauses. Confining the mapping
 # here is what keeps `SortOrder` a product concept rather than a database
 # one - and, because the API only ever passes an enum member, it also
@@ -203,6 +225,10 @@ class SupabaseRepository(PaperRepository):
             )
         if response.status_code == 404:
             raise NotFoundError("That record was not found.")
+        # 42703 = undefined_column. The code is ahead of the schema; the caller
+        # retries with the older column list rather than failing the request.
+        if code == "42703":
+            raise _SchemaBehindError(detail or "A required column does not exist yet.")
         # 23503 = foreign key violation: the ON DELETE RESTRICT in 002.
         if code == "23503" or response.status_code == 409:
             raise ConflictError(
@@ -308,11 +334,49 @@ class SupabaseRepository(PaperRepository):
     # `analyses(...,created_at.desc.limit.1)` looks plausible and is rejected
     # by PostgREST with "failed to parse select parameter" - see
     # `_ANALYSIS_PARAMS`, which carries the ordering instead.
-    _ANALYSIS_EMBED = (
-        "analyses(model_used,summary,research_gaps,literature_review,"
-        "chunk_count,truncated,created_at,model_provider,fallback_used,"
-        "fallback_provider,processing_time_ms)"
+    # The columns every deployment has.
+    _ANALYSIS_BASE = (
+        "model_used,summary,research_gaps,literature_review,chunk_count,truncated,created_at"
     )
+    # Added by migration 004. Requested only while we believe they exist.
+    _ANALYSIS_PROVENANCE = "model_provider,fallback_used,fallback_provider,processing_time_ms"
+
+    @staticmethod
+    def _analysis_embed() -> str:
+        """The `analyses(...)` embed, matched to what the database actually has.
+
+        Asking PostgREST for a column that does not exist fails the WHOLE
+        request with a 400, so this cannot simply always ask: deploying this
+        code before running migration 004 would take the entire library offline
+        rather than merely omitting four fields. `_detail` reads them with
+        `.get()`, so their absence is already harmless once they are not asked
+        for.
+        """
+        columns = SupabaseRepository._ANALYSIS_BASE
+        if _PROVENANCE_COLUMNS_PRESENT:
+            columns = f"{columns},{SupabaseRepository._ANALYSIS_PROVENANCE}"
+        return f"analyses({columns})"
+
+    async def _with_schema_fallback(self, attempt):
+        """Run `attempt`, retrying once without the provenance columns.
+
+        `attempt` is called with no arguments and reads the module flag through
+        `_analysis_embed`, so the retry automatically asks for less.
+        """
+        global _PROVENANCE_COLUMNS_PRESENT
+        try:
+            return await attempt()
+        except _SchemaBehindError:
+            if not _PROVENANCE_COLUMNS_PRESENT:
+                raise
+            logger.warning(
+                "the analyses table has no provenance columns; run migration "
+                "004 to record which model produced each analysis. Continuing "
+                "without them."
+            )
+            _PROVENANCE_COLUMNS_PRESENT = False
+            return await attempt()
+
     # Most recent analysis per paper. `limit` on an embedded resource applies
     # per parent row, so this is one analysis each, not one across the page.
     _ANALYSIS_PARAMS = {
@@ -327,6 +391,7 @@ class SupabaseRepository(PaperRepository):
     # ---------- papers ----------
 
     async def save_paper(self, request: SavePaperRequest) -> PaperDetail:
+        global _PROVENANCE_COLUMNS_PRESENT
         doc = request.document
         paper_payload = {
             "title": request.title.strip() or request.filename,
@@ -357,15 +422,39 @@ class SupabaseRepository(PaperRepository):
             "literature_review": request.literature_review.model_dump(),
             "chunk_count": doc.chunk_count,
             "truncated": doc.truncated,
-            # Provenance. NULL when the client did not supply it, which is
-            # what an analysis produced before these columns existed has.
-            "model_provider": request.model_provider,
-            "fallback_used": request.fallback_used,
-            "fallback_provider": request.fallback_provider,
-            "processing_time_ms": request.processing_time_ms,
         }
+        if _PROVENANCE_COLUMNS_PRESENT:
+            # Provenance. Omitted entirely - not sent as NULL - when the
+            # database predates migration 004, because PostgREST rejects an
+            # INSERT naming a column that does not exist.
+            analysis_payload.update(
+                {
+                    "model_provider": request.model_provider,
+                    "fallback_used": request.fallback_used,
+                    "fallback_provider": request.fallback_provider,
+                    "processing_time_ms": request.processing_time_ms,
+                }
+            )
         try:
-            await self._request("POST", "/analyses", json=analysis_payload)
+            try:
+                await self._request("POST", "/analyses", json=analysis_payload)
+            except _SchemaBehindError:
+                # Migration 004 has not run. Drop the four provenance keys and
+                # save the analysis itself, which matters far more than the
+                # metadata about it.
+                _PROVENANCE_COLUMNS_PRESENT = False
+                logger.warning(
+                    "saving without provenance columns; run migration 004 to "
+                    "record which model produced each analysis"
+                )
+                for key in (
+                    "model_provider",
+                    "fallback_used",
+                    "fallback_provider",
+                    "processing_time_ms",
+                ):
+                    analysis_payload.pop(key, None)
+                await self._request("POST", "/analyses", json=analysis_payload)
         except RepositoryError:
             # A paper row with no analysis is a half-saved record the user
             # would see as a broken library entry. Roll it back so the
@@ -387,58 +476,67 @@ class SupabaseRepository(PaperRepository):
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[PaperListItem], int]:
-        params: dict[str, Any] = {
-            "select": f"{self._PAPER_COLUMNS},{self._ANALYSIS_EMBED}",
-            "order": _ORDER_BY.get(sort, _ORDER_BY[SortOrder.NEWEST]),
-            "limit": limit,
-            "offset": offset,
-            **self._ANALYSIS_PARAMS,
-        }
-        if status:
-            params["status"] = f"eq.{status}"
-        if search:
-            # PostgREST reserves , . : ( ) in filter values. Stripping them
-            # keeps a search for "et al., 2019" a search rather than a
-            # syntax error or an injected filter.
-            term = search.strip().translate(str.maketrans("", "", ",.:()*"))
-            if term:
-                params["or"] = f"(title.ilike.*{term}*,filename.ilike.*{term}*)"
+        async def attempt() -> tuple[list[PaperListItem], int]:
+            params: dict[str, Any] = {
+                # Rebuilt inside `attempt` so a retry asks for fewer columns.
+                "select": f"{self._PAPER_COLUMNS},{self._analysis_embed()}",
+                "order": _ORDER_BY.get(sort, _ORDER_BY[SortOrder.NEWEST]),
+                "limit": limit,
+                "offset": offset,
+                **self._ANALYSIS_PARAMS,
+            }
+            if status:
+                params["status"] = f"eq.{status}"
+            if search:
+                # PostgREST reserves , . : ( ) in filter values. Stripping them
+                # keeps a search for "et al., 2019" a search rather than a
+                # syntax error or an injected filter.
+                term = search.strip().translate(str.maketrans("", "", ",.:()*"))
+                if term:
+                    params["or"] = f"(title.ilike.*{term}*,filename.ilike.*{term}*)"
 
-        # `count=exact` returns the total in Content-Range, so one request
-        # answers both "this page" and "how many altogether".
-        headers = {**self._headers, "Prefer": "count=exact"}
-        try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                response = await client.get(f"{self._rest}/papers", headers=headers, params=params)
-        except Exception as exc:
-            raise self._translate(exc) from exc
-        self._check(response)
+            # `count=exact` returns the total in Content-Range, so one request
+            # answers both "this page" and "how many altogether".
+            headers = {**self._headers, "Prefer": "count=exact"}
+            try:
+                async with httpx.AsyncClient(timeout=self._timeout) as client:
+                    response = await client.get(
+                        f"{self._rest}/papers", headers=headers, params=params
+                    )
+            except Exception as exc:
+                raise self._translate(exc) from exc
+            self._check(response)
 
-        total = 0
-        content_range = response.headers.get("content-range", "")
-        if "/" in content_range:
-            tail = content_range.split("/")[-1]
-            if tail.isdigit():
-                total = int(tail)
+            total = 0
+            content_range = response.headers.get("content-range", "")
+            if "/" in content_range:
+                tail = content_range.split("/")[-1]
+                if tail.isdigit():
+                    total = int(tail)
 
-        items = [self._list_item(row) for row in response.json()]
-        return items, total or len(items)
+            items = [self._list_item(row) for row in response.json()]
+            return items, total or len(items)
+
+        return await self._with_schema_fallback(attempt)
 
     async def get_paper(self, paper_id: str) -> PaperDetail:
-        response = await self._request(
-            "GET",
-            "/papers",
-            params={
-                "select": f"{self._PAPER_COLUMNS},{self._ANALYSIS_EMBED}",
-                "id": f"eq.{paper_id}",
-                "limit": 1,
-                **self._ANALYSIS_PARAMS,
-            },
-        )
-        rows = response.json()
-        if not rows:
-            raise NotFoundError("That paper is not in your library.")
-        return self._detail(rows[0])
+        async def attempt() -> PaperDetail:
+            response = await self._request(
+                "GET",
+                "/papers",
+                params={
+                    "select": f"{self._PAPER_COLUMNS},{self._analysis_embed()}",
+                    "id": f"eq.{paper_id}",
+                    "limit": 1,
+                    **self._ANALYSIS_PARAMS,
+                },
+            )
+            rows = response.json()
+            if not rows:
+                raise NotFoundError("That paper is not in your library.")
+            return self._detail(rows[0])
+
+        return await self._with_schema_fallback(attempt)
 
     async def delete_paper(self, paper_id: str) -> bool:
         response = await self._request("DELETE", "/papers", params={"id": f"eq.{paper_id}"})
@@ -451,22 +549,28 @@ class SupabaseRepository(PaperRepository):
         if not paper_ids:
             return []
         id_list = ",".join(paper_ids)
-        response = await self._request(
-            "GET",
-            "/papers",
-            params={
-                "select": f"{self._PAPER_COLUMNS},{self._ANALYSIS_EMBED}",
-                "id": f"in.({id_list})",
-                **self._ANALYSIS_PARAMS,
-            },
-        )
-        found = {str(row["id"]): row for row in response.json()}
-        missing = [pid for pid in paper_ids if pid not in found]
-        if missing:
-            raise NotFoundError(f"{len(missing)} selected paper(s) are no longer in your library.")
-        # Returned in the order the user selected, not the order Postgres
-        # happened to return.
-        return [self._detail(found[pid]) for pid in paper_ids]
+
+        async def attempt() -> list[PaperDetail]:
+            response = await self._request(
+                "GET",
+                "/papers",
+                params={
+                    "select": f"{self._PAPER_COLUMNS},{self._analysis_embed()}",
+                    "id": f"in.({id_list})",
+                    **self._ANALYSIS_PARAMS,
+                },
+            )
+            found = {str(row["id"]): row for row in response.json()}
+            missing = [pid for pid in paper_ids if pid not in found]
+            if missing:
+                raise NotFoundError(
+                    f"{len(missing)} selected paper(s) are no longer in your library."
+                )
+            # Returned in the order the user selected, not the order Postgres
+            # happened to return.
+            return [self._detail(found[pid]) for pid in paper_ids]
+
+        return await self._with_schema_fallback(attempt)
 
     # ---------- literature reviews ----------
 

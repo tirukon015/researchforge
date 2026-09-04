@@ -663,3 +663,112 @@ class TestFailureTranslation:
     def test_health_reports_true_when_reachable(self, _patch_client) -> None:
         mock(_patch_client, lambda r: json_response([]))
         assert run(repo().health()) is True
+
+
+# --------------------------------------------------------------------------- #
+# Deploying code ahead of its migration
+# --------------------------------------------------------------------------- #
+
+
+class TestSchemaBehindTheCode:
+    """The library must keep working when migration 004 has not been run yet.
+
+    REGRESSION TEST. This was found in production, not in review. Code that
+    selects `analyses.model_provider` was deployed before the migration adding
+    that column; PostgREST fails the WHOLE request with 42703, so every read of
+    the library returned 502 and My Papers went blank. Omitting four metadata
+    fields is a rounding error next to that.
+
+    Code and migrations are never perfectly ordered, so the repository degrades
+    instead of assuming.
+    """
+
+    def setup_method(self) -> None:
+        import src.db.supabase as module
+
+        module._PROVENANCE_COLUMNS_PRESENT = True
+
+    @staticmethod
+    def _undefined_column(request: httpx.Request) -> httpx.Response:
+        return json_response(
+            {
+                "code": "42703",
+                "message": "column analyses.model_provider does not exist",
+            },
+            400,
+        )
+
+    def test_a_listing_survives_a_missing_provenance_column(self, _patch_client) -> None:
+        calls: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(request)
+            if "model_provider" in str(request.url):
+                return self._undefined_column(request)
+            return json_response([PAPER_ROW])
+
+        mock(_patch_client, handler)
+        items, _ = run(repo().list_papers())
+
+        assert [i.title for i in items] == ["Attention Paper"]
+        # Asked once with the new columns, once without.
+        assert len(calls) == 2
+        assert "model_provider" in str(calls[0].url)
+        assert "model_provider" not in str(calls[1].url)
+
+    def test_get_paper_survives_it_too(self, _patch_client) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            if "model_provider" in str(request.url):
+                return self._undefined_column(request)
+            return json_response([PAPER_ROW])
+
+        mock(_patch_client, handler)
+        assert run(repo().get_paper("abc")).title == "Attention Paper"
+
+    def test_the_discovery_is_remembered_so_it_costs_one_round_trip(self, _patch_client) -> None:
+        """Re-learning this on every request would double every read."""
+        calls: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(request)
+            if "model_provider" in str(request.url):
+                return self._undefined_column(request)
+            return json_response([PAPER_ROW])
+
+        mock(_patch_client, handler)
+        run(repo().list_papers())
+        run(repo().list_papers())
+        run(repo().list_papers())
+
+        # One failed probe, then three successful narrower reads.
+        assert sum("model_provider" in str(c.url) for c in calls) == 1
+        assert len(calls) == 4
+
+    def test_a_paper_still_saves_without_the_provenance_columns(self, _patch_client) -> None:
+        """The analysis matters; the metadata about it does not matter as much."""
+        posts: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "POST":
+                posts.append(request)
+                if b"model_provider" in request.content:
+                    return self._undefined_column(request)
+                return json_response([{"id": "paper-1"}])
+            return json_response([PAPER_ROW])
+
+        mock(_patch_client, handler)
+        run(repo().save_paper(save_request()))
+
+        analysis_posts = [p for p in posts if b"paper_id" in p.content]
+        assert analysis_posts, "the analysis was never written"
+        assert b"model_provider" not in analysis_posts[-1].content
+
+    def test_an_unrelated_400_is_not_swallowed(self, _patch_client) -> None:
+        """Only 42703 triggers the retry. A genuine bad request must still
+        fail, or a query bug would be retried forever and reported as fine."""
+        mock(
+            _patch_client,
+            lambda r: json_response({"code": "22P02", "message": "invalid input syntax"}, 400),
+        )
+        with pytest.raises(RepositoryError):
+            run(repo().list_papers())
