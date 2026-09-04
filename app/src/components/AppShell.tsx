@@ -39,6 +39,7 @@ import { usePathname } from "next/navigation";
 
 import AuthGate from "@/components/AuthGate";
 import Footer from "@/components/Footer";
+import ResearchBackdrop from "@/components/ResearchBackdrop";
 import MarketingShell from "@/components/MarketingShell";
 import TopNav from "@/components/TopNav";
 
@@ -66,6 +67,17 @@ export function isPublicRoute(pathname: string): boolean {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
+  // The decorative backdrop: books, documents, a search, a small citation
+  // graph. Fixed, pointer-events:none and behind everything, so it changes no
+  // layout and can take no click.
+  //
+  // NOT mounted on the account screens. Those are single-purpose pages that
+  // already carry their own soft wash, and `.authshell` paints an opaque
+  // background across the viewport - so the layer would be invisible there
+  // anyway, and making it visible would mean altering a working rule for a
+  // decoration nobody needs while typing a password.
+  const backdrop = <ResearchBackdrop />;
+
   // The account screens: no navigation, no footer. Each is a single decision.
   if (isAuthRoute(pathname)) {
     return <div className="authshell">{children}</div>;
@@ -73,19 +85,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // The landing page brings its own header and footer.
   if (pathname === "/") {
-    return <MarketingShell>{children}</MarketingShell>;
+    return (
+      <>
+        {backdrop}
+        <MarketingShell>{children}</MarketingShell>
+      </>
+    );
   }
 
   return (
-    <div className="shell">
-      <a className="skip-link" href="#main">
-        Skip to content
-      </a>
-      <TopNav />
-      <main id="main" className="page">
-        <AuthGate>{children}</AuthGate>
-      </main>
-      <Footer />
-    </div>
+    <>
+      {backdrop}
+      <div className="shell">
+        <a className="skip-link" href="#main">
+          Skip to content
+        </a>
+        <TopNav />
+        <main id="main" className="page">
+          <AuthGate>{children}</AuthGate>
+        </main>
+        <Footer />
+      </div>
+    </>
   );
 }

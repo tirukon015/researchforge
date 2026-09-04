@@ -2760,3 +2760,211 @@ code {
   color: var(--muted);
   cursor: not-allowed;
 }
+
+/* ============================================================
+   Decorative research backdrop
+   ============================================================
+   A purely visual layer behind the interface: books, documents, a
+   search, a small citation graph. Additive - it changes no existing
+   rule, no dimension and no colour of any control.
+
+   Three properties do the safety work:
+     position: fixed     it is outside layout entirely, so it cannot
+                         move anything or produce a scrollbar
+     pointer-events: none  it can never take a click from the UI
+     z-index 0 vs 1      content is lifted to 1 (below), so every card
+                         and letter paints over it
+
+   Colours come from the theme's own tokens, so the layer can never
+   drift away from the palette, and both themes are handled by ONE
+   set of shapes rather than a second asset.
+   ============================================================ */
+
+.rbg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  /* Cannot intercept anything. Every child inherits this. */
+  pointer-events: none;
+  /* Artwork is clipped at the viewport edge rather than extending the
+     page, which is what would otherwise create a scrollbar. */
+  overflow: hidden;
+  /* Cheap promise to the compositor that this never repaints. */
+  contain: strict;
+}
+
+/* The only "atmosphere": two very wide, very faint radials, both far
+   off-centre so the middle of the screen stays plain. */
+.rbg__wash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      52rem 40rem at 4% 96%,
+      color-mix(in srgb, var(--accent) 7%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      46rem 36rem at 98% 4%,
+      color-mix(in srgb, var(--accent) 6%, transparent),
+      transparent 68%
+    );
+}
+
+/* The two artwork columns. Fixed to the outer edges and capped in
+   width, so the centre band is never encroached on at any viewport. */
+.rbg__art {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: clamp(200px, 22vw, 330px);
+  height: 100%;
+}
+.rbg__art--left {
+  left: 0;
+}
+.rbg__art--right {
+  right: 0;
+}
+
+/* ---------- shared ink ----------
+   Everything is a hairline in the accent colour at a very low alpha.
+   `vector-effect` keeps strokes exactly 1px however the SVG is scaled,
+   which is what stops the artwork thickening on a wide screen. */
+.rbg line,
+.rbg rect,
+.rbg circle,
+.rbg polyline {
+  stroke: var(--accent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  fill: none;
+}
+
+.rbg-book rect {
+  opacity: 0.16;
+}
+.rbg-book line {
+  opacity: 0.13;
+}
+.rbg-book text {
+  fill: var(--accent);
+  stroke: none;
+  opacity: 0.2;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+/* The one book stood on its end, leaning on the stack. */
+.rbg-book--tilt {
+  transform: rotate(-6deg);
+  transform-origin: 210px 776px;
+}
+
+.rbg-page rect {
+  opacity: 0.14;
+}
+.rbg-page line {
+  opacity: 0.11;
+}
+
+/* A highlighted passage - the "evidence" motif. Filled rather than
+   stroked, so it reads as a marker pen and not another box. */
+.rbg-mark {
+  fill: var(--accent);
+  stroke: none;
+  opacity: 0.1;
+}
+
+.rbg-panel rect {
+  opacity: 0.16;
+}
+.rbg-panel line {
+  opacity: 0.12;
+}
+.rbg-glass {
+  opacity: 0.22;
+  stroke-width: 1.4;
+}
+
+.rbg-result line {
+  opacity: 0.11;
+}
+
+.rbg-label {
+  fill: var(--accent);
+  stroke: none;
+  opacity: 0.17;
+  font-family: var(--font);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.rbg-chart line {
+  opacity: 0.14;
+}
+.rbg-chart polyline {
+  opacity: 0.2;
+  stroke-width: 1.4;
+}
+.rbg-chart circle {
+  opacity: 0.24;
+  fill: var(--accent);
+  stroke: none;
+}
+
+/* A reference network: papers citing papers. Kept to four nodes and
+   four links, because more starts to look like a neural diagram. */
+.rbg-link line {
+  opacity: 0.12;
+}
+.rbg-node circle {
+  opacity: 0.2;
+  fill: var(--accent);
+  stroke: none;
+}
+
+/* ---------- dark theme ----------
+   The same shapes at lower alpha. Light ink on a dark ground reads far
+   louder than the reverse, so a value that is a whisper on white is a
+   shout on near-black. */
+:root[data-theme="dark"] .rbg {
+  opacity: 0.62;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .rbg {
+    opacity: 0.62;
+  }
+}
+
+/* ---------- narrow screens ----------
+   Below the point where the content column reaches the edges, the
+   artwork would sit UNDER the text rather than beside it. The wash is
+   kept - it costs nothing and still warms the page - and the drawings
+   are dropped. */
+@media (max-width: 1100px) {
+  .rbg__art {
+    display: none;
+  }
+}
+
+/* A reader who has asked for less movement is not asking for less
+   decoration, and nothing here animates - but a print-out of an
+   analysis should carry none of it. */
+@media print {
+  .rbg {
+    display: none;
+  }
+}
+
+/* Content sits above the backdrop.
+   `.shell` is the frame the backdrop appears behind; lifting it to
+   z-index 1 is the whole integration, and it changes no dimension,
+   spacing or colour. The account screens do not mount the backdrop,
+   so they are deliberately not listed here. */
+.shell {
+  position: relative;
+  z-index: 1;
+}
