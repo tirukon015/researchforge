@@ -5,22 +5,26 @@
  *
  * THE FLOW
  * --------
- *   1. The user presses "Continue with Google".
+ *   1. The user presses "Continue with Google" (or opens a confirmation link).
  *   2. `signInWithOAuth` sends them to Google via Supabase.
  *   3. Google returns them to Supabase, which returns them HERE with a
  *      one-time `?code=` on the URL.
- *   4. The Supabase client is created with `detectSessionInUrl: true`, so it
- *      spots that code as it initialises and exchanges it for a session.
+ *   4. The Supabase client is created with `flowType: "pkce"` and
+ *      `detectSessionInUrl: true`, so it spots that code as it initialises and
+ *      exchanges it for a session.
  *   5. `onAuthStateChange` fires, `AuthProvider` picks the session up, and
- *      this page forwards to the dashboard.
+ *      this page forwards on.
  *
  * WHY THIS PAGE WAITS INSTEAD OF EXCHANGING THE CODE ITSELF
  * ---------------------------------------------------------
  * The obvious implementation calls `exchangeCodeForSession(code)` here. That
- * is a bug: `detectSessionInUrl` has already consumed the code by the time
- * this component mounts, and a one-time code cannot be redeemed twice, so the
- * explicit call fails and this page would report a failure on a sign-in that
- * actually succeeded. Waiting for the session is the correct shape.
+ * is a bug in THIS configuration: `detectSessionInUrl` has already consumed
+ * the code by the time this component mounts, and a one-time code cannot be
+ * redeemed twice, so the explicit call fails and the page would report a
+ * failure on a sign-in that actually succeeded. Waiting for the session is
+ * correct, and it is also flow-agnostic - it works unchanged whether the URL
+ * carried a PKCE code or an implicit-flow token fragment, which matters
+ * because a stale link issued before the switch to PKCE still has to work.
  *
  * WHY THE ROUTE IS ALSO USED BY EMAIL CONFIRMATION
  * ------------------------------------------------

@@ -39,7 +39,12 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 
 import { setTokenReader } from "@/lib/api";
-import { getSupabase, isAuthConfigured } from "@/lib/supabase";
+import {
+  authRedirectUrl,
+  getSupabase,
+  isAuthConfigured,
+  isSafeReturnPath,
+} from "@/lib/supabase";
 
 /** What we know about the account, and whether we have finished asking. */
 export type AuthState =
@@ -124,8 +129,8 @@ const NEXT_KEY = "researchforge.auth.next";
 
 export function rememberDestination(next: string | null | undefined): void {
   try {
-    if (next && next.startsWith("/") && !next.startsWith("//")) {
-      sessionStorage.setItem(NEXT_KEY, next);
+    if (isSafeReturnPath(next)) {
+      sessionStorage.setItem(NEXT_KEY, next as string);
     } else {
       sessionStorage.removeItem(NEXT_KEY);
     }
@@ -141,8 +146,8 @@ export function takeDestination(fallback = "/dashboard"): string {
     // Re-checked on the way OUT as well as in. Storage is writable by any
     // script on this origin, and an absolute URL here would turn the callback
     // into an open redirect.
-    if (stored && stored.startsWith("/") && !stored.startsWith("//")) {
-      return stored;
+    if (isSafeReturnPath(stored)) {
+      return stored as string;
     }
   } catch {
     /* storage blocked */
@@ -321,13 +326,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // back from the token holder, so a name never needs a table of its
           // own - and never needs to be kept in step with one.
           data: { full_name: fullName.trim() },
-          // Where the confirmation link returns to. Built from the running
-          // origin so it is correct on localhost, on every preview URL, and on
-          // the custom domain, without a variable that has to be remembered.
-          emailRedirectTo:
-            typeof window !== "undefined"
-              ? `${window.location.origin}/dashboard`
-              : undefined,
+          // Where the confirmation link returns to.
+          //
+          // /auth/callback, NOT /dashboard. The confirmation link establishes
+          // the session as it lands, and /dashboard is behind the route guard:
+          // arriving there a moment before the session settles bounces the
+          // user to sign-in, which is a confusing end to having just confirmed
+          // their email. The callback exists to wait for exactly that.
+          //
+          // It also means signup confirmation and Google sign-in share ONE
+          // allow-listed URL instead of needing two.
+          emailRedirectTo: authRedirectUrl("/auth/callback"),
         },
       });
       if (error) {
@@ -370,14 +379,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          // ONE fixed path on this origin, built from the running origin so it
-          // is correct on localhost, on every preview URL, and on the custom
-          // domain without a variable anyone has to remember to change.
+          // ONE fixed path on the origin actually being used, so it is right
+          // on localhost, on every preview URL, and on the custom domain with
+          // nothing to remember to change.
           //
-          // This exact URL must be in the Supabase project's redirect
-          // allow-list. If it is not, Supabase falls back to the Site URL and
-          // the user lands somewhere with no session and no explanation.
-          redirectTo: `${window.location.origin}/auth/callback`,
+          // ⚠️ This exact URL MUST be in the Supabase redirect allow-list.
+          // Supabase does not refuse an unlisted redirect when the flow
+          // starts - it accepts it and then substitutes the project's Site URL
+          // on the way back, landing the user on that site's ROOT instead.
+          // That is precisely the "/?access_token=..." on the wrong host that
+          // this project shipped with.
+          redirectTo: authRedirectUrl("/auth/callback"),
         },
       });
 
@@ -413,10 +425,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (email: string) => {
       const supabase = requireClient();
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo:
-          typeof window !== "undefined"
-            ? `${window.location.origin}/reset-password`
-            : undefined,
+        // Its own path, unlike the other two flows. A reset link is opened
+        // from an email, potentially in a different browser, so nothing this
+        // tab stored is available to tell /auth/callback where to send them.
+        // The destination therefore has to be the URL itself.
+        redirectTo: authRedirectUrl("/reset-password"),
       });
       if (error) {
         throw new AuthError(
