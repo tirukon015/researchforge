@@ -48,3 +48,6 @@ documentation of the implementation; this folder is.
   to finish. **Read this first if you are picking the project up.**
 - [EVALUATION](EVALUATION.md) - the evaluation protocol and scoring rubric,
   fixed before any scoring. No results yet; the experiment needs an API key.
+- [AUTH](AUTH.md) - how sign-in works, and the **required Supabase dashboard
+  configuration**. Read this first if a sign-in or an email link sends someone
+  to the wrong host.
