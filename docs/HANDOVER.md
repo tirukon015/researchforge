@@ -129,7 +129,7 @@ until somebody is named.
 | Ruff format | Clean |
 | TypeScript | Clean |
 | Next.js build | Clean, 15 routes |
-| Secrets | No credential file tracked; no `rukon6950` anywhere |
+| Secrets | No credential file tracked; the forbidden identity appears nowhere |
 
 ### Verified earlier in the same session, against live production
 
