@@ -1,0 +1,51 @@
+RUNS: 15 attempted, 10 succeeded
+
+PER RUN
+  pass paper        actual     fb     sec      ms find gaps  thm
+  A    1706.03762   anthropic  no     0.0   98337    7    9    9
+  A    1810.04805   anthropic  no     0.0  115151    8    9    8
+  A    1903.10676   anthropic  no     0.0   72564    7    7    5
+  A    2004.04228   anthropic  no     0.0   99357   11   10    7
+  A    2005.11401   anthropic  no     0.0  108114   11   10    9
+  B    1706.03762   anthropic  YES   18.7   93691    6    8    9
+  B    1810.04805   anthropic  YES  116.0  110422    9    9    8
+  B    1903.10676   anthropic  YES   79.8   76987    7    7    6
+  B    2004.04228   anthropic  YES   97.5   91795    8   10    7
+  B    2005.11401   anthropic  YES  110.7  104990   11   10    9
+  C    1706.03762   -          -   FAILED http=502
+  C    1810.04805   -          -   FAILED http=502
+  C    1903.10676   -          -   FAILED http=502
+  C    2004.04228   -          -   FAILED http=502
+  C    2005.11401   -          -   FAILED http=502
+
+PRODUCED BY ANTHROPIC  (n=10)
+  latency ms      median   98847   min   72564   max  115151
+  key findings         median   8.0   range 6-11
+  research gaps        median   9.0   range 7-10
+  stated limitations   median  11.5   range 7-12
+  review themes        median   8.0   range 5-9
+  review comparisons   median   7.5   range 5-12
+  future directions    median   5.0   range 3-7
+  gap analyses reporting insufficient evidence: 0/10
+
+COMPLETION BY PASS
+  A  Claude primary, both enabled       completed 5/5   by the configured provider 5/5
+  B  Groq primary, both enabled         completed 5/5   by the configured provider 0/5
+  C  Groq only, Claude switched off     completed 0/5   by the configured provider 0/5
+
+FALLBACK
+  runs where the primary failed and the other provider took over: 5/10
+
+GROQ FREE-TIER CAPACITY (input tokens per minute, as reported by Groq)
+  1706.03762   requested  11,745 / limit 7,000   = 1.7x over
+  1810.04805   requested  18,498 / limit 7,000   = 2.6x over
+  2005.11401   requested  20,362 / limit 7,000   = 2.9x over
+  1903.10676   requested   7,920 / limit 7,000   = 1.1x over
+  2004.04228   requested  12,661 / limit 7,000   = 1.8x over
+
+EXTRACTION (identical for both providers; it happens before any model runs)
+  1706.03762:  15p   39,489 chars   2632 chars/page  chunks=1 truncated=False
+  1810.04805:  16p   63,578 chars   3973 chars/page  chunks=1 truncated=False
+  1903.10676:   6p   23,767 chars   3961 chars/page  chunks=1 truncated=False
+  2004.04228:  13p   46,601 chars   3584 chars/page  chunks=1 truncated=False
+  2005.11401:  19p   69,097 chars   3636 chars/page  chunks=1 truncated=False

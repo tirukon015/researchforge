@@ -110,6 +110,10 @@ models/*
 results/*
 !results/.gitkeep
 !results/**/*.md
+# Evaluation evidence IS tracked. CLAUDE.md section 10 lists results/ as in
+# Git, and the report and evidence pack cite these files as the audit trail,
+# so an examiner must be able to open them. 301 KB in total.
+!results/evaluation/
 
 # ---------- Databases & logs ----------
 *.sqlite
@@ -140,3 +144,6 @@ desktop.ini
 tmp/
 temp/
 scratch/
+
+# Office lock files, created while a document is open
+~$*

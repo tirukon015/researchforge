@@ -1,0 +1,72 @@
+[
+  {
+    "paper_id": "1706.03762",
+    "configured_provider": "groq",
+    "analysis_version": "v1",
+    "content_hash": "072e1911dfa6862dffc8c34d28ef509446787e55acdb32f7f671e80af75979a6",
+    "page_count": 15,
+    "extracted_characters": 39489,
+    "http_status": 502,
+    "wall_clock_seconds": 7.22,
+    "timestamp": "2026-09-04T08:11:09Z",
+    "succeeded": false,
+    "error_status": 502,
+    "error_detail": "error code: 502\n"
+  },
+  {
+    "paper_id": "1810.04805",
+    "configured_provider": "groq",
+    "analysis_version": "v1",
+    "content_hash": "3ff40a26e18e978231ee29668c062fe7a32196b0bb0ab3e6ba0517895629e544",
+    "page_count": 16,
+    "extracted_characters": 63578,
+    "http_status": 502,
+    "wall_clock_seconds": 12.92,
+    "timestamp": "2026-09-04T08:11:32Z",
+    "succeeded": false,
+    "error_status": 502,
+    "error_detail": "error code: 502\n"
+  },
+  {
+    "paper_id": "2005.11401",
+    "configured_provider": "groq",
+    "analysis_version": "v1",
+    "content_hash": "e6fbe4d0bf1e46d73546b9b344f687bdc1800a8f57eb0770d521b73ae5909653",
+    "page_count": 19,
+    "extracted_characters": 69097,
+    "http_status": 502,
+    "wall_clock_seconds": 7.71,
+    "timestamp": "2026-09-04T08:13:25Z",
+    "succeeded": false,
+    "error_status": 502,
+    "error_detail": "error code: 502\n"
+  },
+  {
+    "paper_id": "1903.10676",
+    "configured_provider": "groq",
+    "analysis_version": "v1",
+    "content_hash": "bee3048cf3e6222cf3ddb0770b92a9ab7af54b73375e2206a76acd20bef1224c",
+    "page_count": 6,
+    "extracted_characters": 23767,
+    "http_status": 502,
+    "wall_clock_seconds": 3.72,
+    "timestamp": "2026-09-04T08:13:39Z",
+    "succeeded": false,
+    "error_status": 502,
+    "error_detail": "error code: 502\n"
+  },
+  {
+    "paper_id": "2004.04228",
+    "configured_provider": "groq",
+    "analysis_version": "v1",
+    "content_hash": "2b97b85abc8f9bcb61f951becce42a0b3d212d6dc3b49887c5e081c2e82a2371",
+    "page_count": 13,
+    "extracted_characters": 46601,
+    "http_status": 502,
+    "wall_clock_seconds": 6.85,
+    "timestamp": "2026-09-04T08:13:56Z",
+    "succeeded": false,
+    "error_status": 502,
+    "error_detail": "error code: 502\n"
+  }
+]

@@ -1,0 +1,45 @@
+[
+  {
+    "paper_id": "1706.03762",
+    "http_status": 502,
+    "wall_clock_seconds": 7.8,
+    "detail": "Request too large for model `qwen/qwen3.6-27b` in organization `org_01m1m2my4je1y8f6r35hz1hd5b` service tier `on_demand` on input tokens per minute (ITPM): Limit 7000, Requested 11745, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing",
+    "itpm_limit": 7000,
+    "itpm_requested": 11745
+  },
+  {
+    "paper_id": "1810.04805",
+    "http_status": 502,
+    "wall_clock_seconds": 5.49,
+    "detail": "Request too large for model `qwen/qwen3.6-27b` in organization `org_01m1m2my4je1y8f6r35hz1hd5b` service tier `on_demand` on input tokens per minute (ITPM): Limit 7000, Requested 18498, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing",
+    "itpm_limit": 7000,
+    "itpm_requested": 18498
+  },
+  {
+    "paper_id": "2005.11401",
+    "http_status": 502,
+    "wall_clock_seconds": 6.76,
+    "detail": "Request too large for model `qwen/qwen3.6-27b` in organization `org_01m1m2my4je1y8f6r35hz1hd5b` service tier `on_demand` on input tokens per minute (ITPM): Limit 7000, Requested 20362, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing",
+    "itpm_limit": 7000,
+    "itpm_requested": 20362
+  },
+  {
+    "paper_id": "1903.10676",
+    "http_status": 429,
+    "wall_clock_seconds": 3.6,
+    "detail": "Groq is rate limiting requests right now. Please try again shortly.",
+    "cache_cleared_before_measurement": true,
+    "itpm_limit": 7000,
+    "itpm_requested": 7920,
+    "measurement_note": "Measured by the diagnostic probe that first identified the ITPM ceiling (scratchpad/probe_502.py), run against the Vercel origin with Claude disabled and this paper's cache row already cleared by the isolated Groq pass. Later re-measurement attempts returned a bare 429 because repeated probing had spent the free-tier per-minute budget, so the figure is retained from that run rather than re-measured."
+  },
+  {
+    "paper_id": "2004.04228",
+    "http_status": 502,
+    "wall_clock_seconds": 5.88,
+    "detail": "Request too large for model `qwen/qwen3.6-27b` in organization `org_01m1m2my4je1y8f6r35hz1hd5b` service tier `on_demand` on input tokens per minute (ITPM): Limit 7000, Requested 12661, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing",
+    "cache_cleared_before_measurement": true,
+    "itpm_limit": 7000,
+    "itpm_requested": 12661
+  }
+]

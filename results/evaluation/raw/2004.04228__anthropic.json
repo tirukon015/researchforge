@@ -1,0 +1,168 @@
+{
+  "document": {
+    "filename": "2004.04228.pdf",
+    "page_count": 13,
+    "extracted_characters": 46601,
+    "chunk_count": 1,
+    "truncated": false
+  },
+  "summary": {
+    "research_problem": "Abstractive summarization models frequently produce summaries that are factually inconsistent with their source documents, which limits practical use. Existing automatic evaluation metrics are predominantly n-gram overlap based (ROUGE, BLEU, METEOR), which require reference texts and weight all n-grams equally, making them insensitive to semantic/factual errors (e.g., 'I am writing my paper in Vancouver' vs. 'I am not writing my paper in Vancouver'). This leaves human evaluation, which is slow, costly, and difficult even for humans, as the primary approach. The paper addresses the need for an automatic metric that detects factual inconsistencies in generated summaries.",
+    "methodology": "The authors propose a general framework for evaluating conditional text generation: (1) a question generation (QG) model generates questions about the generated text, (2) question answering (QA) models answer these questions given both the source and the generated text, and (3) a score is computed from the similarity of corresponding answers. Formally, consistency is the expectation over questions sampled from p(Q|Y) of a similarity function D between p(A|Q,X) and p(A|Q,Y); because the expectation is intractable, high-probability questions from beam search are used. The instantiation for summarization, QAGS, uses: an answer-conditional QG model (BART fine-tuned on NewsQA via fairseq, beam search width 10, 10 answer candidates extracted as named entities and noun phrases with spaCy, giving 100 candidate questions, filtered by heuristics such as removing duplicates and questions under three tokens and removing questions the QA model deems unanswerable, keeping the K=20 most probable); extractive QA models (BERT large-uncased fine-tuned on SQuAD2.0 via the transformers library); and token-level F1 between the two answers, averaged over questions. Evaluation: human judgments of factual consistency were collected on Amazon Mechanical Turk via ParlAI for 235 CNN/DM test outputs from Gehrmann et al. (2018) and 239 XSUM test outputs from BART fine-tuned on XSUM, with sentence-level binary consistency decisions (3 annotations per summary, majority vote per sentence, averaged across sentences). For XSUM the reference summary was prepended to the article. Summary-level Pearson correlations were computed between metrics and human judgments; baselines were ROUGE, METEOR, BLEU, and BERTScore. Ablations varied QA model quality, QG model quality (perplexity on NewsQA dev), training domain (SQuAD-tuned QG instead of NewsQA), number of questions (5, 10, 20, 50), and answer similarity metric (F1 vs. exact match). QAGS was also compared to NLI-based methods on the sentence ranking task of Falke et al. (2019) (373 triplets). Finally, the authors manually annotated 400 question/article-answer/summary-answer triplets from XSUM for error analysis.",
+    "key_findings": [
+      "QAGS obtained substantially higher Pearson correlation with human factual consistency judgments than all baselines: 54.53 on CNN/DM and 17.49 on XSUM, versus 17.72 and 8.95 for ROUGE-2, 28.74 and 13.22 for ROUGE-1, 29.68 and 11.76 for BLEU-1, and 27.63 and 2.51 for BERTScore.",
+      "On CNN/DM, QAGS achieved nearly twice the correlation of the next best automatic metric (BLEU-1); all metrics correlated worse on the more abstractive XSUM dataset.",
+      "Inter-annotator agreement (Krippendorff's alpha) was 0.51 for CNN/DM and 0.34 for XSUM ('moderate' and 'fair').",
+      "QAGS is robust to QA model quality: bert-base (75.95 SQuAD F1) gave correlations of 55.20/20.71, bert-large 54.53/17.49, and bert-large-wwm (84.36 F1) 51.36/18.07, so the best QA model did not give the best correlations.",
+      "QAGS is fairly robust to QG model quality: as NewsQA perplexity increased (5.48, 9.50, 18.56), CNN/DM correlations fell (54.53, 50.09, 47.92) with no clear trend on XSUM (17.49, 19.93, 16.38); even the weakest QG model outperformed all other automatic metrics.",
+      "Domain shift (QG trained on SQuAD rather than NewsQA) reduced correlations to 51.53 (CNN/DM) and 15.28 (XSUM) but still outperformed all other automatic metrics.",
+      "Correlation increased with the number of questions (CNN/DM: 41.61 at 5, 41.17 at 10, 54.53 at 20, 57.94 at 50) with decreasing marginal benefit; even 5 questions outperformed other metrics.",
+      "Using exact match instead of F1 for answer similarity gave 45.97 (CNN/DM) and 18.10 (XSUM).",
+      "On the Falke et al. (2019) sentence ranking task, QAGS ranked the consistent sentence higher 72.1% of the time, outperforming FactCC (70.0%), ESIM (67.6%), BERT NLI (64.1%), and random (50.0%), without task-specific supervision.",
+      "Error analysis of 400 XSUM triplets: 8.75% of generated questions were nonsensical, 3.00% well-formed but unanswerable from the summary, 8.25% well-formed but unanswerable from the source (often due to hallucinated facts); 1.75% of summary-answerable questions were answered incorrectly from the summary versus 32.50% from the article; in 8.00% of cases both answers were correct but lexically divergent so F1 failed to detect similarity.",
+      "QAGS is interpretable: generated questions and answers reveal which summary tokens are inconsistent (e.g., wrong attacker name, location, and weapons in a sample summary)."
+    ],
+    "conclusion": "The authors conclude that their question asking and answering framework, instantiated as QAGS, automatically detects factual inconsistencies in abstractive summaries, correlating with human judgments of factuality significantly better than standard automatic metrics and outperforming NLI-based factual consistency approaches. QAGS is naturally interpretable, since its questions and answers indicate which tokens are inconsistent and why, and it is robust to underlying model quality, domain mismatch, and the number of questions. They note limitations (QAGS measures only factual consistency relative to the source, not fluency, readability, or factual recall, and would likely give extractive systems near-perfect scores), recommend using it alongside complementary metrics, suggest improved QA models and non n-gram answer similarity as future work, and propose the framework can extend to other modalities such as translation and image captioning.",
+    "insufficient_evidence": []
+  },
+  "research_gaps": {
+    "stated_limitations": [
+      "QAGS and the overall framework are \"specifically designed to detect factual inconsistencies in generated summaries relative to the source article\" and do \"not measure other desirable properties of generated text, including fluency, readability, or factual recall\"; the authors recommend using QAGS alongside complementary metrics.",
+      "\"The choices of QG and QA models in QAGS are particular to abstractive summarization and may require adaptation to be used for other conditional text generation tasks.\"",
+      "The authors expect extractive summarization models \"may obtain nearly perfect QAGS scores because facts and statements are directly copied from the source article.\"",
+      "Extractive QA models are used \"for simplicity\", assuming facts are text spans; \"Future work should explore using abstractive QA models, which could match paraphrases of the same answer.\"",
+      "Answer similarity via token-level F1 fails on lexically variable but correct answers: \"for 8.00% of the examples, the question is answered correctly using both the article and summary, but the answers have high lexical variation such that F1 score fails to detect their similarity.\"",
+      "QA transfer is weak: \"This percentage increases to 32.50% for the article, which indicates that the transfer ability of the QA model is lacking.\"",
+      "Question generation quality is imperfect: \"8.75% are nonsensical\", 3.00% well-formed but unanswerable from the summary, and multiple near-duplicate questions occur.",
+      "Exact computation of the expectation over questions is intractable; the authors use beam search, which \"may be biased in the limit\".",
+      "Domain shift hurts: using a SQuAD-tuned QG model yields correlations of 51.53 and 15.28 versus 54.53 and 17.49 with the NewsQA-tuned model, \"indicat[ing] a negative domain shift effect\".",
+      "Robustness to QA model quality is qualified: \"BERT is a strong QA baseline, and using weaker QA models might lead to larger performance dropoffs.\"",
+      "Human annotation agreement is imperfect: Krippendorff's alpha of 0.51 (CNN/DM) and 0.34 (XSUM), described as \"moderate\" and \"fair\", \"While not perfect\".",
+      "XSUM required a workaround: summaries contain facts not present in the \"article\", so the summary was prepended back onto the article for both human evaluation and QAGS."
+    ],
+    "identified_gaps": [
+      {
+        "gap": "The framework is claimed to be applicable to any modality with a QA model (text, images, knowledge graphs) and to tasks such as translation and image captioning, but no experiments outside abstractive text summarization are conducted.",
+        "why_it_matters": "Empirical validation beyond summarization would establish whether the ask-and-answer framework generalizes as a general-purpose factual consistency metric for conditional generation.",
+        "evidence": "\"applicable to any modality where a QA model is available, e.g. text, images, or knowledge graphs\" and \"Our approach can also be applied to diverse modalities, such as translation and image captioning\", yet all experiments use CNN/DM and XSUM summaries."
+      },
+      {
+        "gap": "QAGS is only tested with extractive QA and token-level F1 (or exact match) answer similarity; abstractive QA and non-n-gram similarity metrics remain unexplored.",
+        "why_it_matters": "The error analysis shows 8.00% of cases fail purely because correct answers differ lexically, so better answer comparison could directly raise the metric's accuracy.",
+        "evidence": "\"Future work should explore using abstractive QA models, which could match paraphrases of the same answer\"; \"exploring similarity metrics other than n-gram based approaches could be useful.\""
+      },
+      {
+        "gap": "Answer candidates are restricted to named entities and noun phrases extracted with spaCy, limiting the types of factual errors that can be detected; more diverse answer candidates are not evaluated.",
+        "why_it_matters": "Errors involving relations, negation, quantities in other forms, or events may be systematically missed, biasing the metric toward entity-level hallucinations.",
+        "evidence": "\"Because the answer candidates used are mostly named entities and noun phrases, QAGS is particularly effective at detecting errors of this kind. Using more diverse answer candidates may broaden the set of inconsistencies that QAGS is able to detect.\""
+      },
+      {
+        "gap": "QA model transfer to the full source article is a major failure mode (32.50% of questions answered incorrectly from the article), but the paper does not investigate why or how to fix it.",
+        "why_it_matters": "This error rate likely caps the achievable correlation of QAGS with human judgments, especially on long documents.",
+        "evidence": "\"This percentage increases to 32.50% for the article, which indicates that the transfer ability of the QA model is lacking\"; \"Error analysis shows that future work should explore improved QA models.\""
+      },
+      {
+        "gap": "Evaluation is limited to two English news summarization datasets with roughly 235 and 239 summary outputs each, and summaries from a small number of specific models (Gehrmann et al. 2018 for CNN/DM, BART for XSUM).",
+        "why_it_matters": "Correlations may not transfer to other domains, languages, or summarization systems, which is central to a metric intended for general use.",
+        "evidence": "\"we use 235 test outputs from Gehrmann et al. (2018)\"; \"We use a subset of 239 test outputs from BART fine-tuned on XSUM\"; only CNN/DM and XSUM are evaluated."
+      },
+      {
+        "gap": "Performance on XSUM is substantially weaker (17.49 Pearson vs 54.53 on CNN/DM) and ablation trends there are inconsistent, but the paper offers only a brief speculation about abstractiveness rather than a diagnosis.",
+        "why_it_matters": "Highly abstractive summarization is exactly the regime where factual inconsistency is most severe, so understanding the drop is needed before the metric can be relied upon there.",
+        "evidence": "\"On XSUM, all metrics correlate worse with human judgments than on CNN/DM, which reflects the fact that XSUM is more abstractive\"; Table 3 shows \"no clear trend for XSUM\"."
+      },
+      {
+        "gap": "The paper notes that QAGS requires a labeled QA/QG dataset and that for \"relatively niche domains, such a labeled QA/QG dataset may not exist\", but only simulates domain shift with SQuAD rather than testing genuinely low-resource domains.",
+        "why_it_matters": "Practical deployment in specialized domains (e.g., medical, legal) depends on knowing how far the metric degrades without in-domain QA supervision.",
+        "evidence": "\"for relatively niche domains, such a labeled QA/QG dataset may not exist... We simulate this setting by fine-tuning the QG model on SQuAD.\""
+      },
+      {
+        "gap": "The number of questions ablation stops at 50 and the claim of decreasing marginal benefit beyond 50 is asserted rather than tested, and the computational cost of QAGS relative to n-gram metrics is not reported.",
+        "why_it_matters": "Cost per summary determines whether QAGS is usable for large-scale evaluation or as a training signal, which the paper advocates.",
+        "evidence": "Table 4 reports 5, 10, 20 and 50 questions; the text states \"a smaller increase from 20 to 50 questions, indicating decreasing marginal benefit moving beyond 50 questions\" without evaluating beyond 50. No runtime analysis is presented."
+      },
+      {
+        "gap": "QAGS is used only as a post hoc evaluation and re-ranking signal; it is not integrated into model training or decoding to improve factual consistency.",
+        "why_it_matters": "The stated motivation is that better metrics are needed \"to build better models\" and to incentivize factually consistent generation, which requires demonstrating downstream gains.",
+        "evidence": "\"We argue that evaluation metrics that are able to capture subtle semantic errors are required to build better models\" and \"we believe QAGS is useful in quantifying and incentivizing factually consistent text generation\", but experiments cover only correlation and the Falke et al. sentence ranking task."
+      },
+      {
+        "gap": "Human judgments are binary per sentence with only fair agreement on XSUM, and no analysis is given of how annotation noise bounds the reported correlations.",
+        "why_it_matters": "Reported correlation ceilings and comparisons between metrics may be affected by the reliability of the gold judgments.",
+        "evidence": "\"Inter-annotator agreement as measured by Krippendorff's alpha is 0.51 and 0.34 for CNN/DM and XSUM, respectively indicating 'moderate' and 'fair' agreement... While not perfect, these agreement numbers are in-line with similar figures from previous work.\""
+      }
+    ],
+    "insufficient_evidence": false,
+    "evidence_note": ""
+  },
+  "literature_review": {
+    "scope_note": "This review summarises only the prior work discussed, cited, and positioned against within the single uploaded paper (Wang, Cho, and Lewis, 'Asking and Answering Questions to Evaluate the Factual Consistency of Summaries'); it is not a survey of the wider field, and the cited works themselves were not consulted.",
+    "major_themes": [
+      "N-gram overlap metrics for evaluating generated text (ROUGE, BLEU, METEOR) and critiques of their adequacy for summarization.",
+      "Factual inconsistency (hallucination) as a persistent failure mode of abstractive neural summarization models.",
+      "Use of NLU models, particularly natural language inference, for factual consistency checking of generated summaries.",
+      "Question answering and question generation as components of automatic evaluation metrics.",
+      "Human evaluation of summarization quality, including its cost, difficulty, and inter-annotator agreement.",
+      "Pretrained models and resources enabling QG/QA pipelines (BERT, BART, MASS, SQuAD2.0, NewsQA, spaCy, fairseq, transformers, ParlAI).",
+      "Summarization datasets and models used as evaluation testbeds (CNN/DailyMail, XSUM, and specific summarization systems)."
+    ],
+    "relevant_findings": [
+      "Recent progress in conditional text generation has produced models generating fluent, topical summaries (Lewis et al., 2019).",
+      "Model-generated summaries frequently contain factual inconsistencies, limiting applicability (Kryscinski et al., 2019a); lack of factual consistency has 'plagued' abstractive neural summarization models (Cao et al., 2018; Falke et al., 2019; Kryscinski et al., 2019b).",
+      "Human evaluation of factual consistency is challenging even for humans (Daume III and Marcu, 2005; Kryscinski et al., 2019b), as well as slow and costly.",
+      "ROUGE (Lin, 2004) was developed specifically for summarization and its variants are the de facto standard, yet much work has demonstrated its limited ability to evaluate summaries (Dorr et al., 2004; Liu and Liu, 2009; Kedzie et al., 2018).",
+      "BLEU (Papineni et al., 2002) computes precision of reference n-grams and was developed for machine translation; METEOR (Lavie and Agarwal, 2007) extends BLEU with alignment, stemming, and synonym replacement.",
+      "BERTScore (Zhang et al., 2019) uses BERT representations to align generation and reference tokens and compute a soft unigram F1.",
+      "Falke et al. (2019) investigated NLI models for evaluating factual correctness of CNN/DM summaries and concluded that current NLI models are too brittle to be reliably used in this manner; their reported results give BERT NLI 64.1% and ESIM (Chen et al., 2017) 67.6% on the sentence ranking task, versus a 50.0% random baseline.",
+      "Kryscinski et al. (2019b) trained an NLI-based fact-checking model, FactCC, using a dataset of factual inconsistencies constructed with noise heuristics; it obtains 70.0% on the sentence ranking task.",
+      "Goodrich et al. (2019) use information extraction models to measure factual overlap, but facts are restricted to pre-defined schemas.",
+      "Eyal et al. (2019) and Scialom et al. (2019) use QA models to evaluate summarization, employing Cloze-style questions generated by masking entities in either the source document or the reference summary.",
+      "Automatic question generation has been modelled with neural seq2seq models (Du et al., 2017; Krishna and Iyyer, 2019).",
+      "Summarization models trained on CNN/DM exhibit sentence fusing behaviour (Lebanoff et al., 2019), which the paper speculates explains part of QAGS's strong correlation on that dataset.",
+      "XSUM (Narayan et al., 2018) summaries are significantly more abstractive than CNN/DM summaries, and extractive models perform poorly on XSUM.",
+      "Other metrics have targeted specific aspects of summarization quality, including content selection (Nenkova and Passonneau, 2004) and relevance prediction (Daume III and Marcu, 2005).",
+      "The paper's reported inter-annotator agreement (Krippendorff's alpha 0.51 for CNN/DM, 0.34 for XSUM) is described as in line with similar figures from previous work on summarization evaluation (Daume III and Marcu, 2005), with interpretation labels from Ageeva et al. (2015).",
+      "Falke et al. (2019) provide 373 triplets of CNN/DM source sentences with one consistent and one inconsistent summary sentence generated by the model of Chen and Bansal (2018)."
+    ],
+    "comparisons": [
+      "QAGS is compared directly with n-gram metrics on Pearson correlation with human factual-consistency judgments: 54.53 vs ROUGE-2's 17.72 on CNN/DM, with BLEU and ROUGE performing comparably to each other and lower-order n-gram metrics working better.",
+      "BERTScore is reported to match the best n-gram metrics on CNN/DM but to be the worst overall metric on XSUM (2.51).",
+      "On the Falke et al. (2019) sentence ranking task, QAGS (72.1%) is compared with FactCC (70.0%, Kryscinski et al., 2019b), ESIM (67.6%), BERT NLI (64.1%), and a random baseline (50.0%); the paper notes QAGS outperforms these while requiring no special supervision for the task.",
+      "The paper contrasts its QA-based approach with NLI-based approaches, arguing QA allows finer-grained analysis because NLI operates on complete sentences whereas QAGS can ask many questions about the same sentence.",
+      "The paper distinguishes itself from Eyal et al. (2019) and Scialom et al. (2019) on two points: it generates questions with a model rather than using Cloze-style masking, allowing a greater range of questions; and it conditions questions on the generated summary rather than the reference summary or source article, which it argues is more appropriate for verifying accuracy rather than measuring content selection.",
+      "The paper contrasts its approach with Goodrich et al. (2019), whose information-extraction facts are restricted to pre-defined schemas.",
+      "Correlations for all metrics are lower on XSUM than CNN/DM, which the paper attributes to XSUM being more abstractive."
+    ],
+    "research_trends": [
+      "A recent resurgence of work leveraging NLU models (information extraction, NLI, QA) to evaluate the factuality of generated text, moving beyond n-gram overlap.",
+      "Growing use of large pretrained models (BERT, BART, MASS) for both question generation and question answering, enabling human-readable, on-topic questions.",
+      "Longstanding reliance on ROUGE as the primary summarization evaluation metric since the Document Understanding Conferences (Chali and Kolla, 2004), alongside accumulating evidence of its limitations.",
+      "Development of more abstractive summarization benchmarks (XSUM) on which extractive approaches fail."
+    ],
+    "limitations": [
+      "N-gram metrics require one or more reference texts, which are expensive to obtain; many datasets have only a single reference, which is inadequate for high-entropy tasks such as summarization or dialogue.",
+      "N-gram metrics weigh all portions of the text equally and are insensitive to semantic errors, so factual inconsistencies from minor changes can be drowned out by high n-gram overlap (e.g. the negation example about writing a paper in Vancouver).",
+      "NLI models for factual correctness are described (following Falke et al., 2019) as too brittle to be reliably used; NLI also operates at the level of complete sentences, limiting granularity.",
+      "Information-extraction-based factuality measurement (Goodrich et al., 2019) is limited to pre-defined fact schemas.",
+      "Prior QA-based evaluation (Eyal et al., 2019; Scialom et al., 2019) relies on Cloze-style questions from masked entities and conditions on the reference summary or source, which the paper argues measures content selection rather than accuracy.",
+      "Human evaluation of factual consistency is slow, costly, and difficult even for humans.",
+      "Limitations of the paper's own approach: QAGS does not measure fluency, readability, or factual recall; extractive QA cannot match paraphrased answers; the QG/QA component choices are tailored to abstractive summarization; extractive summarizers would likely receive near-perfect scores; domain shift in QG training data reduces correlation; error analysis shows 8.75% nonsensical questions, 32.50% of article-side questions incorrectly answered, and 8.00% of cases where F1 fails to detect lexically varied but correct answers."
+    ],
+    "future_directions": [
+      "Explore abstractive QA models, which could match paraphrases of the same answer.",
+      "Improve QA models, which the error analysis identifies as the main weakness (limited transfer ability).",
+      "Use more diverse answer candidates beyond named entities and noun phrases to broaden the set of detectable inconsistencies.",
+      "Investigate answer similarity metrics beyond n-gram based approaches such as F1 or exact match.",
+      "Apply the general framework to other modalities and conditional generation tasks, such as translation, image captioning, and settings with QA models over images or knowledge graphs.",
+      "Use QAGS in conjunction with complementary evaluation metrics that capture fluency, readability, and factual recall.",
+      "Release models and code for computing QAGS."
+    ],
+    "insufficient_evidence": false
+  },
+  "model_used": "claude-opus-5",
+  "model_provider": "anthropic",
+  "fallback_used": false,
+  "fallback_provider": null,
+  "processing_time_ms": 99357,
+  "cache_hit": false
+}

@@ -1,0 +1,59 @@
+==========================================================================
+LIVE DATA ISOLATION TEST - https://researchforge.rukon.dev
+==========================================================================
+
+[setup] creating two pre-confirmed test accounts
+  user A: bb583e44-6095-436f-91d3-dd6fb25182c6
+  user B: 7f7ad7dd-2007-4827-b8b8-77ca63852d96
+
+[1] unauthenticated access is refused
+  [PASS] GET /api/papers without a token -> 401
+  [PASS] GET /api/papers/stats without a token -> 401
+  [PASS] GET /api/reviews without a token -> 401
+  [PASS] POST /api/papers without a token -> 401
+
+[2] a brand new account sees an empty library, not the database
+  [PASS] User A: GET /api/papers -> 200
+  [PASS] User A's new library is empty (does NOT show the 2 pre-existing papers)
+
+[3] User A saves a paper
+  [PASS] User A: save -> 201
+  [PASS] User A sees exactly their own 1 paper
+
+[4] User B, on a separate session, cannot see it
+  [PASS] User B's library is EMPTY - User A's paper is not in it
+  [PASS] User B: GET User A's paper by id -> 404
+  [PASS] the 404 body leaks no part of User A's paper
+  [PASS] User B: DELETE User A's paper -> 404 (and it survives)
+
+[5] User B saves their own paper
+  [PASS] User B: save -> 201
+  [PASS] User B sees only their own paper
+  [PASS] User A still sees only their own paper
+
+[6] search and dashboard counters are per account
+  [PASS] User B searching for User A's title finds nothing
+  [PASS] User A's dashboard counts only User A's work
+  [PASS] User B's dashboard counts only User B's work
+
+[7] cross-paper review stays inside one library
+  [PASS] User B cannot include User A's paper in a review -> 404
+      (generating a real cross-paper review - this calls Gemini)
+  [PASS] User A: cross-paper review over their own 2 papers -> 201
+  [PASS] the review names both of User A's papers
+  [PASS] User B does not see User A's review
+  [PASS] User B: GET User A's review by id -> 404
+  [PASS] User B: DELETE User A's review -> 404
+
+[8] the database itself refuses an anonymous reader
+  [PASS] PostgREST with only the publishable key returns ZERO rows
+
+[9] signing out invalidates the session
+  [PASS] a signed-out token is refused once the 5s verification cache expires
+
+[cleanup] removing only what this test created
+  removed 3 test papers, 1 test review, 2 test accounts
+
+==========================================================================
+RESULT: 26 passed, 0 failed
+==========================================================================

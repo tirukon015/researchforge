@@ -1,0 +1,14 @@
+before sign-out:  GET /api/papers -> 200  (expected 200)
+
+signed out; sampling the acceptance window
+
+  t+  1.6s  -> 200   still accepted
+  t+  3.9s  -> 200   still accepted
+  t+  6.1s  -> 401   REFUSED
+  t+  8.0s  -> 401   REFUSED
+  t+  9.8s  -> 401   REFUSED
+  t+ 12.7s  -> 401   REFUSED
+  t+ 15.7s  -> 401   REFUSED
+  t+ 20.7s  -> 401   REFUSED
+
+RESULT: the window is bounded. The token was refused by t+6.1s, consistent with the documented 5s verification cache.

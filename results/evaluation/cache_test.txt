@@ -1,0 +1,53 @@
+=== BEFORE ===
+  cleared 1 stale cache row(s) for this fixture
+  analysis_cache rows: 2
+  two test accounts created
+
+=== 4. FIRST UPLOAD (expect CACHE MISS + one real analysis) ===
+  [PASS] HTTP 200
+  [PASS] cache_hit is FALSE  got False
+  [PASS] took long enough to be a real analysis  32.4s
+         provider : anthropic / claude-opus-5
+         fallback : True
+         time_ms  : 29823
+  [PASS] a cache row was created  2 -> 3
+  [PASS] keyed by analysis_version  v1
+  [PASS] content_hash is sha256 hex
+  [PASS] provenance stored  anthropic
+  [PASS] hit_count starts at 0  0
+
+=== 5. SAME PDF, SAME USER (expect CACHE HIT, no model call) ===
+  [PASS] HTTP 200  got 200
+  [PASS] cache_hit is TRUE  got True
+  [PASS] returned FAST - no model call  3.2s vs 32.4s on the miss
+  [PASS] processing_time_ms is the ORIGINAL figure, not this request's  29823
+  [PASS] provenance is the ORIGINAL run
+  [PASS] the analysis content is identical
+  [PASS] hit_count incremented in the database  hit_count=1
+  [PASS] still exactly ONE cache row - no duplicate
+
+=== 6. SAME PDF, DIFFERENT USER (global cache, private libraries) ===
+  [PASS] HTTP 200  got 200
+  [PASS] cache_hit is TRUE for a different user
+  [PASS] returned FAST - no model call  2.7s
+  [PASS] nothing about User A leaks into User B's response  []
+  [PASS] still exactly ONE cache row
+  [PASS] User A saved their own copy  got 201
+  [PASS] User B saved their own copy  got 201
+  [PASS] User A sees ONLY their own paper  ['Cache Test Paper A']
+  [PASS] User B sees ONLY their own paper  ['Cache Test Paper B']
+  [PASS] User B cannot open User A's paper by id  got 404
+  [PASS] both stored analyses record cache_hit=true  2
+
+=== 7. PROVIDER / COST BEHAVIOUR ===
+  cache MISS:   32.4s  cache_hit=False  model called (anthropic)
+  cache HIT :    3.2s  cache_hit=True   no model call
+  cache HIT :    2.7s  cache_hit=True   no model call (different user)
+  [PASS] a hit is dramatically faster than a miss
+
+=== CLEANUP ===
+  test papers and 2 test accounts removed
+  cache rows remaining: 3
+  papers / analyses / reviews: 9 / 9 / 1
+
+RESULT: PRODUCTION CACHE FULLY WORKING

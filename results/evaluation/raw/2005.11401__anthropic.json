@@ -1,0 +1,173 @@
+{
+  "document": {
+    "filename": "2005.11401.pdf",
+    "page_count": 19,
+    "extracted_characters": 69097,
+    "chunk_count": 1,
+    "truncated": false
+  },
+  "summary": {
+    "research_problem": "Large pre-trained parametric language models store factual knowledge in their weights and perform well when fine-tuned, but they cannot easily expand or revise their memory, cannot readily provide provenance for their predictions, and may produce hallucinations. On knowledge-intensive tasks their performance lags behind task-specific architectures. Prior hybrid models combining parametric memory with a differentiable retriever (e.g., REALM, ORQA) had only been explored for extractive open-domain question answering. The paper asks whether a general-purpose fine-tuning recipe can endow pre-trained seq2seq generation models with non-parametric memory for a broad range of knowledge-intensive tasks.",
+    "methodology": "The authors introduce retrieval-augmented generation (RAG): a probabilistic model that combines a pre-trained parametric memory (BART-large, 400M parameters, as generator) with a non-parametric memory (a dense vector index of a December 2018 Wikipedia dump split into 21M 100-word passages, indexed with FAISS using HNSW), accessed by a pre-trained Dense Passage Retriever (DPR) bi-encoder. Retrieved documents are treated as latent variables, marginalized with a top-K approximation in two formulations: RAG-Sequence (one document conditions the whole output) and RAG-Token (a different document can be used per token). Training minimizes the negative marginal log-likelihood of targets with Adam; the query encoder and generator are fine-tuned end-to-end while the document encoder and index stay fixed. Decoding uses a standard beam decoder for RAG-Token and per-document beam search with 'Thorough' or 'Fast' marginalization for RAG-Sequence. Evaluation covers open-domain QA (Natural Questions, TriviaQA, WebQuestions, CuratedTrec; Exact Match), abstractive QA (MS-MARCO NLG v2.1, treated as open-domain without gold passages; Bleu-1 and Rouge-L), Jeopardy question generation from SearchQA splits (Q-BLEU-1 plus pairwise human evaluations of factuality and specificity, 452 generation pairs), and FEVER fact verification (3-way and 2-way label accuracy, without retrieval supervision). Additional analyses include ablations with a frozen retriever and with BM25, distinct-trigram diversity measurement, index hot-swapping (2016 vs 2018 Wikipedia indices with 82 changed world leaders), and varying the number of retrieved documents at test time.",
+    "key_findings": [
+      "RAG sets new state-of-the-art Exact Match scores on open Natural Questions (44.5 for RAG-Sequence), WebQuestions (45.5 RAG-Token) and CuratedTrec (52.2 RAG-Sequence), and is state of the art on the T5-comparable TriviaQA Wiki split (68.0), without requiring salient span masking pre-training, a re-ranker, or an extractive reader.",
+      "RAG can generate correct answers even when the answer appears in no retrieved document, achieving 11.8% accuracy in such cases on NQ, where an extractive model would score 0%.",
+      "On Open MS-MARCO, RAG-Sequence outperforms BART by 2.6 Bleu points and 2.6 Rouge-L points and approaches state-of-the-art models that use gold passages.",
+      "On Jeopardy question generation, RAG-Token beats RAG-Sequence and both beat BART on Q-BLEU-1 (17.3 / 14.7 vs 15.1 B-1; 22.2 / 21.4 vs 19.7 QB-1); human evaluators rated RAG more factual in 42.7% of cases versus 7.1% for BART, and more specific in 37.4% versus 16.8%.",
+      "Document posterior analysis for RAG-Token shows different documents dominate when generating different book titles, and the posterior flattens after the first token, indicating parametric and non-parametric memory work together.",
+      "On FEVER, RAG reaches within 4.3% of state-of-the-art 3-way pipeline systems (72.5 vs 76.8) and within 2.7% of a gold-evidence 2-way model (89.5 vs 92.2) despite using no retrieval supervision; the top retrieved document comes from a gold article in 71% of cases and a gold article appears in the top 10 in 90% of cases.",
+      "RAG generations are more diverse than BART: distinct-trigram ratios of 83.5% (RAG-Sequence) and 77.8% (RAG-Token) versus 70.7% (BART) on MSMARCO, and 53.8% / 46.8% versus 32.4% on Jeopardy.",
+      "Ablations show learned retrieval improves results over a frozen retriever on all tasks, and dense retrieval beats BM25 on all tasks except FEVER, where BM25 performs best (likely because FEVER claims are entity-centric).",
+      "Index hot-swapping works: RAG answers 70% of world-leader questions correctly with the matched 2016 index for 2016 leaders and 68% with the 2018 index for 2018 leaders, while mismatched indices give only 12% and 4%.",
+      "Retrieving more documents at test time monotonically improves NQ performance for RAG-Sequence but peaks around 10 documents for RAG-Token; for MS-MARCO more documents raise Rouge-L for RAG-Token at the cost of Bleu-1.",
+      "RAG has 626M trainable parameters and outperforms T5-large (770M, 28.9 EM on NQ) by a wide margin, indicating hybrid models need fewer trainable parameters for strong open-domain QA."
+    ],
+    "conclusion": "Hybrid generation models with both parametric and non-parametric memory achieve state-of-the-art results on open-domain QA, are preferred by human evaluators over purely parametric BART for factuality and specificity, benefit measurably from learned retrieval, and can have their world knowledge updated simply by hot-swapping the retrieval index without retraining. The authors suggest future work on jointly pre-training the two components from scratch and on further exploring how parametric and non-parametric memories interact. They also note a broader-impact trade-off: grounding reduces hallucination and increases interpretability, but knowledge sources are never fully factual or unbiased and the model shares misuse risks of language models. An appendix notes a limitation, retrieval collapse observed in preliminary experiments on tasks such as story generation.",
+    "insufficient_evidence": []
+  },
+  "research_gaps": {
+    "stated_limitations": [
+      "The document encoder and index are kept fixed rather than updated during training: \"Updating the document encoder BERTd during training is costly as it requires the document index to be periodically updated as REALM does during pre-training. We do not find this step necessary for strong performance, and keep the document encoder (and index) fixed, only fine-tuning the query encoder BERTq and the BART generator.\"",
+      "The retriever is not trained from scratch and inherits retrieval supervision: \"It is worth noting that RAG's retriever is initialized using DPR's retriever, which uses retrieval supervision on Natural Questions and TriviaQA.\"",
+      "On MS-MARCO, the setup is handicapped and some items are unanswerable: \"MSMARCO has some questions that cannot be answered in a way that matches the reference answer without access to the gold passages\" and \"some MSMARCO questions cannot be answered using Wikipedia alone.\"",
+      "RAG does not reach state of the art on fact verification: \"For 3-way classification, RAG scores are within 4.3% of state-of-the-art models\"; for 2-way, \"RAG achieves an accuracy within 2.7% of this model.\"",
+      "Dense differentiable retrieval is not uniformly better: \"For FEVER, BM25 performs best, perhaps since FEVER claims are heavily entity-centric and thus well-suited for word overlap-based retrieval.\"",
+      "The FEVER evidence-extraction sub-task is not addressed: \"As FEVER uses a different Wikipedia dump to us, directly tackling this task is not straightforward. We hope to address this in future work.\"",
+      "Retrieval collapse was observed on some tasks: \"for some tasks such as story generation, the retrieval component would 'collapse' and learn to retrieve the same documents regardless of the input... the RAG model would perform equivalently to BART.\"",
+      "Null document mechanisms were tried and did not help: \"We did not find that these improved performance, so in the interests of simplicity, we omit them.\"",
+      "Human evaluation required discarding annotators: \"Two annotators did not perform well on these examples and their annotations were removed from the results.\"",
+      "Evaluation-set conventions affect reported TriviaQA numbers: \"We find that our performance is much higher using the official Wiki test set, rather than the more conventional open-domain test set, which we attribute to the official Wiki test set questions being simpler to answer from Wikipedia.\"",
+      "Broader impact: \"Wikipedia, or any potential external knowledge source, will probably never be entirely factual and completely devoid of bias\", and RAG \"might be used to generate abuse, faked or misleading content.\"",
+      "Practical resource cost of the non-parametric memory: the index requires \"~100 GB of CPU memory for all of Wikipedia\", reduced to 36GB with compression."
+    ],
+    "identified_gaps": [
+      {
+        "gap": "The parametric and non-parametric components are separately pre-trained and only combined at fine-tuning time; joint pre-training of both components from scratch is not attempted.",
+        "why_it_matters": "Joint pre-training could remove the dependence on an externally supervised retriever (DPR) and potentially improve how the two memories interact, addressing the paper's own observation that the retriever inherits NQ/TriviaQA supervision.",
+        "evidence": "\"In future work, it may be fruitful to investigate if the two components can be jointly pre-trained from scratch, either with a denoising objective similar to BART or some another objective.\""
+      },
+      {
+        "gap": "The causes of retrieval collapse on tasks such as story generation are only speculated about, not diagnosed or mitigated.",
+        "why_it_matters": "Without understanding or preventing collapse, RAG's general-purpose claim does not extend to long-form or less knowledge-dependent generation tasks, where the model degenerates to plain BART.",
+        "evidence": "\"The collapse could be due to a less-explicit requirement for factual knowledge in some tasks, or the longer target sequences, which could result in less informative gradients for the retriever.\""
+      },
+      {
+        "gap": "The frozen document encoder/index choice is justified only empirically (\"we do not find this step necessary\"); no experiment quantifies what is lost relative to periodically re-encoding documents as REALM does.",
+        "why_it_matters": "Whether trainable document representations help is central to the design of end-to-end retrieval-augmented models and to the cost/benefit tradeoff of index refreshing.",
+        "evidence": "\"We do not find this step necessary for strong performance, and keep the document encoder (and index) fixed\"; the reported ablations cover frozen retriever and BM25, not a trained document encoder."
+      },
+      {
+        "gap": "All experiments use a single Wikipedia dump split into 100-word passages as the only knowledge source; other corpora, domains, or multi-source indices are not evaluated.",
+        "why_it_matters": "The paper suggests applications such as a medical index, but provides no evidence that RAG transfers to non-Wikipedia knowledge sources or to questions unanswerable from Wikipedia.",
+        "evidence": "\"For all experiments, we use a single Wikipedia dump for our non-parametric knowledge source\"; Broader Impact proposes \"endowing it with a medical index\" without experiments."
+      },
+      {
+        "gap": "The knowledge-update (index hot-swapping) claim rests on a narrow probe: 82 world leaders queried with a single template.",
+        "why_it_matters": "Reliable knowledge editing via index replacement is one of RAG's main selling points; broader evaluation over diverse fact types and question forms is needed to establish it.",
+        "evidence": "\"We prepare a list of 82 world leaders who had changed between these dates and use a template 'Who is {position}?'\""
+      },
+      {
+        "gap": "Why BM25 outperforms learned dense retrieval on FEVER is offered only as a conjecture, and no hybrid or improved retriever is explored.",
+        "why_it_matters": "Identifying when learned dense retrieval fails would guide retriever selection and possible sparse-dense combinations for entity-centric tasks.",
+        "evidence": "\"For FEVER, BM25 performs best, perhaps since FEVER claims are heavily entity-centric and thus well-suited for word overlap-based retrieval.\""
+      },
+      {
+        "gap": "The divergent behaviour of RAG-Token and RAG-Sequence with more retrieved documents is reported but unexplained, and no principled way to choose the formulation or K is provided.",
+        "why_it_matters": "Practitioners need guidance on which marginalization scheme and how many documents to use; the paper shows performance can peak or trade off between metrics.",
+        "evidence": "\"retrieving more documents at test time monotonically improves Open-domain QA results for RAG-Sequence, but performance peaks for RAG-Token at 10 retrieved documents\" and \"higher Rouge-L for RAG-Token at the expense of Bleu-1\"."
+      },
+      {
+        "gap": "The FEVER evidence-selection sub-task, which would directly test the interpretability/provenance claim, is left for future work; provenance is assessed only by title overlap with gold articles.",
+        "why_it_matters": "Providing verifiable provenance is a stated motivation of the paper, so a direct evaluation of evidence extraction quality is needed to substantiate it.",
+        "evidence": "\"FEVER's other sub-task involves extracting sentences from Wikipedia as evidence... directly tackling this task is not straightforward. We hope to address this in future work.\" Provenance analysis is limited to \"overlap in article titles between the top k documents retrieved by RAG and gold evidence annotations.\""
+      },
+      {
+        "gap": "Applying RAG to retrieve-and-edit style domains (e.g., machine translation, semantic parsing) is only conjectured.",
+        "why_it_matters": "It would test the generality claim of a single retrieval-augmented architecture beyond QA, generation and classification over Wikipedia.",
+        "evidence": "\"This said, RAG techniques may work well in these settings, and could represent promising future work.\""
+      },
+      {
+        "gap": "Factuality and specificity are established through a single pairwise human study against BART on Jeopardy question generation only; no human factuality evaluation is reported for MS-MARCO or open-domain QA outputs.",
+        "why_it_matters": "The claim that RAG \"hallucinates less\" is broad, but the supporting quantitative human evidence is confined to one task and one baseline.",
+        "evidence": "\"we also perform two human evaluations, one to assess generation factuality, and one for specificity\" for Jeopardy; for MS-MARCO the claim is qualitative: \"Qualitatively, we find that RAG models hallucinate less.\""
+      }
+    ],
+    "insufficient_evidence": false,
+    "evidence_note": ""
+  },
+  "literature_review": {
+    "scope_note": "This review summarises only the prior work that the RAG paper itself describes and cites; it is not a survey of the wider field, since no other papers were available for inspection.",
+    "major_themes": [
+      "Parametric knowledge in pre-trained language models: the paper cites work showing large pre-trained models store factual knowledge in their parameters and act as implicit knowledge bases [47, 51, 52].",
+      "Hybrid parametric plus non-parametric (retrieval-based) memory models, e.g. REALM [20], ORQA/latent retrieval [31], and context effects on factual predictions [48].",
+      "Single-task retrieval: retrieval shown to help individual NLP tasks including open-domain QA [5, 29], fact checking [56], fact completion [48], long-form QA [12], Wikipedia article generation [36], dialogue [41, 65, 9, 13], translation [17], and language modelling [19, 27].",
+      "General-purpose pre-trained architectures without retrieval: pre-trained LMs on GLUE/SuperGLUE [60, 61, 49, 8], GPT-2 [50], and encoder-decoder models BART [32] and T5 [51, 52].",
+      "Learned retrieval for downstream tasks, using neural pre-trained retrievers [44, 26], search [46], reinforcement learning [6, 63, 62], or latent-variable approaches [31, 20].",
+      "Memory-based architectures: memory networks [64, 55], stack-augmented networks [25], large memory layers [30], entity-memory models [14], and fact-embedding-attending dialogue models [15, 13].",
+      "Retrieve-and-edit approaches in machine translation [18, 22] and semantic parsing [21].",
+      "Extractive open-domain QA (retrieve-and-extract) pipelines [5, 7, 31, 26] versus closed-book generative QA [52].",
+      "Evaluation methodology drawn from prior work: Q-BLEU-1 [42], SQuAD-tuned metric use following [67], pairwise comparative human evaluation [34], diversity-promoting decoding and specificity [33, 59, 39]."
+    ],
+    "relevant_findings": [
+      "Pre-trained neural language models learn a substantial amount of in-depth knowledge from data and can serve as parameterized implicit knowledge bases [47, 51, 52].",
+      "Such parametric models cannot easily expand or revise memory, cannot straightforwardly explain their predictions, and may produce \"hallucinations\" [38].",
+      "REALM [20] and ORQA [31] combine masked language models [8] with a differentiable retriever and have shown promising results, but only for open-domain extractive question answering.",
+      "REALM uses expensive specialised \"salient span masking\" pre-training and periodically re-computes the document index during pre-training [20].",
+      "DPR [26] uses a BERT bi-encoder retriever trained to retrieve documents containing answers to TriviaQA [24] and Natural Questions [29] questions, and its QA system adds a BERT cross-encoder re-ranker plus an extractive reader.",
+      "BART [32] was pre-trained with a denoising objective and multiple noising functions, obtained state-of-the-art results on diverse generation tasks, and outperforms comparably sized T5 models.",
+      "GPT-2 [50] showed a single left-to-right pre-trained LM can perform well on discriminative and generative tasks; BART and T5 improved on this using bi-directional attention in an encoder-decoder.",
+      "Reported prior scores the paper compares against: T5-11B 34.5 EM on NQ and T5-11B+SSM 36.6 [52]; REALM 40.4 NQ, 40.7 WQ, 46.8 CT [20]; DPR 41.5 NQ, 57.9 TQA, 41.1 WQ, 50.6 CT [26]; MS-MARCO state of the art [4]; FEVER 3-way state of the art [68] at 92.2/76.8 figures reported in Table 2; FEVER 2-way [57].",
+      "Thorne and Vlachos [57] train RoBERTa to classify FEVER claims as true or false given the gold evidence sentence.",
+      "FEVER state-of-the-art 3-way systems are complex pipelines with domain-specific architectures, substantial engineering, and intermediate retrieval supervision.",
+      "T5-large (770M parameters) achieves 28.9 EM on Natural Questions [52].",
+      "Q-BLEU [42] is a BLEU variant weighting entity matches more heavily and correlates better with human judgment for question generation than standard metrics.",
+      "Perez et al. [46] also found spurious retrieval results when optimizing a retrieval component to improve downstream task performance.",
+      "CuratedTrec answers are given as regular expressions, which has been suggested as a reason it is unsuitable for answer-generation models [20].",
+      "Concurrent work [14] learns to retrieve a trained embedding for each entity in the input rather than raw text; other work conditions dialogue generators on retrieved text obtained via TF-IDF [9].",
+      "Roberts et al. [52] evaluate TriviaQA on the official Wikipedia test set, and F\u00e9vry et al. [14] follow this convention for comparability, whereas DPR-style splits [26] use the public TriviaQA Web Development split."
+    ],
+    "comparisons": [
+      "RAG versus REALM/ORQA: both combine retrieval with pre-trained models, but the prior systems used masked language models and were explored only for extractive open-domain QA, while RAG extends the idea to seq2seq generation.",
+      "RAG versus REALM and T5+SSM: RAG obtains strong results without the expensive specialised salient span masking pre-training used by those models, and without periodically updating the document encoder/index as REALM does.",
+      "RAG versus DPR's QA pipeline: RAG compares favourably despite not using DPR's BERT cross-encoder re-ranker or extractive reader, showing neither component is necessary for state-of-the-art performance.",
+      "Extractive versus generative QA: unconstrained generation outperforms previous extractive approaches [5, 7, 31, 26]; RAG can produce correct answers (11.8% on NQ) when no retrieved document contains the answer, where an extractive model would score 0%.",
+      "RAG versus prior single-task retrieval work: previous work applied different retrieval architectures and optimization techniques each tuned to one task, whereas RAG shows one retrieval-based architecture fine-tuned for many tasks.",
+      "RAG versus memory networks and entity-memory models: RAG's memory is raw text, making it human-readable and human-writable, unlike distributed representations used in [64, 55, 14, 15, 13].",
+      "RAG versus retrieve-and-edit [18, 22, 21]: RAG places less emphasis on lightly editing a retrieved item, instead aggregating content from several retrieved passages, learning latent retrieval, and retrieving evidence documents rather than related training pairs.",
+      "RAG versus Thorne and Vlachos [57]: RAG is within 2.7% accuracy on 2-way FEVER despite receiving only the claim and retrieving its own evidence, whereas the comparison model is given gold evidence.",
+      "Parameter efficiency: RAG (626M trainable parameters) substantially exceeds T5-large (770M, 28.9 EM on NQ) and outperforms T5-11B, indicating hybrid models need far fewer trainable parameters.",
+      "Retriever comparison within the paper: dense DPR-based retrieval versus fixed BM25 [53], where BM25 performs best on FEVER (entity-centric claims well suited to word overlap) while differentiable retrieval wins elsewhere, especially open-domain QA."
+    ],
+    "research_trends": [
+      "A move from task-specific, trained-from-scratch memory-augmented architectures toward pre-trained parametric and non-parametric components pre-loaded with knowledge, so retrieval ability exists without additional training.",
+      "Increasing use of a single general-purpose pre-trained architecture across many tasks, which the paper extends by adding a learned retrieval module.",
+      "Growing adoption of neural, learned (rather than word-overlap) retrievers, including latent-variable and end-to-end trained retrieval.",
+      "Growing interest in diversity-promoting decoding and in the verifiability/factuality of generated text [33, 59, 39]."
+    ],
+    "limitations": [
+      "REALM [20] and ORQA [31] explored only open-domain extractive question answering, not generation.",
+      "REALM requires costly specialised salient span masking pre-training and periodic re-computation of the document index.",
+      "Earlier non-parametric memory architectures (memory networks [64, 55], stack-augmented networks [25], memory layers [30]) were trained from scratch for specific tasks rather than pre-trained.",
+      "Memories composed of distributed representations or entity embeddings [14, 15, 13] are neither human-readable nor easily editable, unlike a raw-text index.",
+      "Purely parametric models such as T5 and BART cannot be updated as the world changes without further training, cannot explain predictions, and may hallucinate.",
+      "Standard extractive QA models cannot benefit from documents that contain clues but not the verbatim answer.",
+      "Most FEVER approaches rely on retrieval supervision, which is often unavailable in real-world applications.",
+      "Some prior dialogue work retrieves via TF-IDF rather than end-to-end learned retrieval [9].",
+      "Prior retrieval optimization work can suffer spurious retrieval [46], echoed by the paper's own observation of retrieval collapse on story generation [11]."
+    ],
+    "future_directions": [
+      "Jointly pre-training the parametric and non-parametric components from scratch, for example with a BART-like denoising objective or another objective.",
+      "Further research on how parametric and non-parametric memories interact and how best to combine them.",
+      "Applying RAG techniques in retrieve-and-edit settings such as machine translation and semantic parsing.",
+      "Addressing the FEVER evidence-extraction sub-task, which is complicated by the use of a different Wikipedia dump.",
+      "Applying RAG to a wide variety of NLP tasks and domains (e.g. a medical index), while mitigating misuse risks such as abusive, faked, or misleading content generation."
+    ],
+    "insufficient_evidence": false
+  },
+  "model_used": "claude-opus-5",
+  "model_provider": "anthropic",
+  "fallback_used": false,
+  "fallback_provider": null,
+  "processing_time_ms": 108114,
+  "cache_hit": false
+}
