@@ -1,0 +1,43 @@
+flowchart LR
+    USER(["User"])
+    OWNER(["Owner<br/>(a user with owner rights)"])
+    subgraph SYS["ResearchForge"]
+        direction TB
+        U1["Create account"]
+        U2["Sign in"]
+        U3["Google sign in"]
+        U4["Reset password"]
+        U5["Upload paper"]
+        U6["Analyse paper"]
+        U7["View summary"]
+        U8["View key findings"]
+        U9["View research gaps"]
+        U10["View literature review"]
+        U11["Perform cross-paper review"]
+        U12["View personal library"]
+        U13["Change profile name"]
+        U14["Change password"]
+        U15["Sign out"]
+        O1["Access Owner AI Configuration"]
+        O2["Select primary AI provider"]
+        O3["Enable / disable provider"]
+    end
+    USER --- U1
+    USER --- U2
+    USER --- U3
+    USER --- U4
+    USER --- U5
+    USER --- U11
+    USER --- U12
+    USER --- U13
+    USER --- U14
+    USER --- U15
+    OWNER --- O1
+    O1 -. "includes" .-> O2
+    O1 -. "includes" .-> O3
+    U5 -. "includes" .-> U6
+    U6 -. "includes" .-> U7
+    U6 -. "includes" .-> U8
+    U6 -. "includes" .-> U9
+    U6 -. "includes" .-> U10
+    style SYS fill:#f8fafc,stroke:#1e40af

@@ -1,0 +1,18 @@
+flowchart TD
+    U(["User"]) --> W["Web interface (Next.js)"]
+    W --> AU["Supabase Auth"]
+    W -- "bearer token + PDF" --> AV["FastAPI backend"]
+    AV --> EX["Extract, normalise, hash"]
+    EX --> CA{"Analysis cache"}
+    CA -- "miss" --> RT["AI provider router"]
+    RT --> P1["Primary: Groq qwen3.6-27b"]
+    RT -. "one retryable fallback" .-> P2["Fallback: Anthropic claude-opus-5"]
+    P1 --> VA["Schema validation"]
+    P2 --> VA
+    VA --> DB[("Supabase PostgreSQL, RLS")]
+    CA -- "hit" --> DB
+    DB -- "filtered by auth.uid()" --> W
+    style P1 fill:#e8eef9,stroke:#1e40af
+    style P2 fill:#e8eef9,stroke:#1e40af
+    style DB fill:#ecfaf4,stroke:#047857
+    style AU fill:#ecfaf4,stroke:#047857

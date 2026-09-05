@@ -1,0 +1,51 @@
+erDiagram
+    AUTH_USERS ||--o{ PAPERS : owns
+    AUTH_USERS ||--o{ ANALYSES : owns
+    AUTH_USERS ||--o{ REVIEWS : owns
+    AUTH_USERS ||--o| APP_OWNERS : "may be"
+    PAPERS ||--o| ANALYSES : has
+    REVIEWS ||--o{ REVIEW_PAPERS : includes
+    PAPERS ||--o{ REVIEW_PAPERS : "listed in"
+    AUTH_USERS {
+        uuid id PK
+        text email
+    }
+    PAPERS {
+        uuid id PK
+        uuid user_id FK
+        text title
+        int page_count
+    }
+    ANALYSES {
+        uuid id PK
+        uuid paper_id FK
+        uuid user_id FK
+        jsonb summary
+        jsonb research_gaps
+        jsonb literature_review
+        text model_provider
+        bool fallback_used
+        bool cache_hit
+    }
+    REVIEWS {
+        uuid id PK
+        uuid user_id FK
+        jsonb review
+    }
+    REVIEW_PAPERS {
+        uuid review_id FK
+        uuid paper_id FK
+    }
+    ANALYSIS_CACHE {
+        text content_hash PK
+        text analysis_version PK
+        jsonb payload
+        int hit_count
+    }
+    SYSTEM_SETTINGS {
+        text key PK
+        text value
+    }
+    APP_OWNERS {
+        uuid user_id PK
+    }

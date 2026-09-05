@@ -1,0 +1,20 @@
+flowchart TD
+    A(["Upload PDF"]) --> B{"Valid and extractable?"}
+    B -- No --> B1(["Reject 413 / 422"])
+    B -- Yes --> E["Normalise and hash"]
+    E --> G{"Cache hit?"}
+    G -- Yes --> H["Reuse cached analysis"]
+    G -- No --> K["Call primary provider"]
+    K --> L{"Retryable failure?"}
+    L -- Yes --> M["One fallback attempt"]
+    L -- No --> N{"Schema valid?"}
+    M --> N
+    N -- No --> N1(["Discard, return error"])
+    N -- Yes --> O["Store analysis and cache"]
+    O --> I["Create user's own records"]
+    H --> I
+    I --> J(["Display result"])
+    style H fill:#ecfaf4,stroke:#047857
+    style O fill:#ecfaf4,stroke:#047857
+    style N1 fill:#fdf6ec,stroke:#b45309
+    style B1 fill:#fdf6ec,stroke:#b45309

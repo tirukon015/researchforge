@@ -1,0 +1,7 @@
+{
+  "theme": "neutral",
+  "themeVariables": { "fontSize": "40px", "fontFamily": "Calibri, Arial, sans-serif" },
+  "themeCSS": ".edgeLabel, .edgeLabel p, .edgeLabel span, .relationshipLabelBox, .er .relationshipLabel { font-size: 32px !important; } .er .entityLabel { font-size: 36px !important; }",
+  "flowchart": { "nodeSpacing": 22, "rankSpacing": 26, "padding": 8 },
+  "er": { "fontSize": 28, "entityPadding": 10 }
+}

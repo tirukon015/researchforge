@@ -1,0 +1,32 @@
+{
+  "fig2_1_conceptual": {
+    "width_in": 6.0,
+    "height_in": 3.2,
+    "effective_pt": 10.2,
+    "dpi": 392
+  },
+  "fig4_1_architecture": {
+    "width_in": 3.21,
+    "height_in": 8.4,
+    "effective_pt": 8.8,
+    "dpi": 732
+  },
+  "fig4_2_usecase": {
+    "width_in": 5.13,
+    "height_in": 8.4,
+    "effective_pt": 10.0,
+    "dpi": 458
+  },
+  "fig4_3_activity": {
+    "width_in": 2.27,
+    "height_in": 8.4,
+    "effective_pt": 6.8,
+    "dpi": 1014
+  },
+  "fig4_4_erd": {
+    "width_in": 6.0,
+    "height_in": 5.45,
+    "effective_pt": 7.3,
+    "dpi": 392
+  }
+}

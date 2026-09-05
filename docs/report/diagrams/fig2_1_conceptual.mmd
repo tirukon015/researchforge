@@ -1,0 +1,13 @@
+flowchart LR
+    A["<b>INPUT</b><br/>Research paper<br/>(PDF)"]
+    B["<b>PROCESSING</b><br/>Extract, normalise,<br/>hash, cache lookup"]
+    C["<b>AI INFERENCE</b><br/>Three grounded passes,<br/>schema validated,<br/>one fallback if retryable"]
+    D["<b>OUTPUT</b><br/>Summary, gaps,<br/>literature review"]
+    E["<b>VALUE</b><br/>Less reading effort,<br/>less duplicate AI cost"]
+    A --> B
+    B -- "miss" --> C --> D
+    B -- "hit" --> D
+    D --> E
+    style A fill:#e8eef9,stroke:#1e40af
+    style C fill:#e8eef9,stroke:#1e40af
+    style E fill:#ecfaf4,stroke:#047857
