@@ -5,6 +5,21 @@ implementation as it actually exists. Where something is designed but not
 built, it is marked as not implemented rather than described as though it
 works.
 
+## Start here: maintenance baseline (current as of 2026-09-26)
+
+These files describe the application **as it is now**. Where an older document below
+disagrees (for example "the application is stateless" or "Gemini is the provider"), these win.
+
+| Document | Read it when you want to know |
+| --- | --- |
+| [MAINTENANCE](MAINTENANCE.md) | How to make a change without re-auditing the whole project |
+| [PROJECT_SPEC](PROJECT_SPEC.md) | What the app must do, its routes, constraints, and what must not change |
+| [COMPONENT_MAP](COMPONENT_MAP.md) | Which file implements what, and who uses it |
+| [DESIGN_SYSTEM](DESIGN_SYSTEM.md) | Colours, type, components, breakpoints, motion |
+| [FEATURES](FEATURES.md) | What is live, built-but-unwired, planned or retired |
+| [CHANGELOG](CHANGELOG.md) | What changed and when |
+| [PROJECT_DOCUMENTATION](PROJECT_DOCUMENTATION.md) · [CASE_STUDY](CASE_STUDY.md) | Full technical record and portfolio case study |
+
 ## Index
 
 | Document | Read it when you want to know |
