@@ -232,3 +232,69 @@ dashed = planned scaffolding nothing calls, dotted = retired.
 
 The existing Mermaid figures for the university report are still in `docs/report/diagrams/`.
 See also `docs/PROJECT_DOCUMENTATION.md` and `docs/CASE_STUDY.md`.
+
+---
+
+## Maintenance quick reference (current state, 2026-09-26)
+
+> **This section describes the application as it is today.** Parts of the document above
+> were written for the stateless MVP (for example "no persistence", Gemini as the provider).
+> Where they conflict, **this section and `PROJECT_SPEC.md` win**.
+
+### Next.js (frontend, `app/`)
+- Next.js 16 App Router, React 19, TypeScript `strict`, plain global CSS
+  (`app/src/app/globals.css`). No Tailwind, no component library, no web fonts.
+- **Server components:** `app/layout.tsx` (metadata, theme init script, providers), the
+  landing page `app/page.tsx`, and one small `layout.tsx` per protected route that only
+  exports `metadata`.
+- **Client components:** every interactive page (`"use client"`), all of `components/`, and
+  every `lib/*` provider. Rule: a page that needs metadata gets a server `layout.tsx` beside
+  a client `page.tsx`, because client components can't export metadata.
+- **Providers (outer → inner):** `ThemeProvider` → `AuthProvider` → `SessionProvider` →
+  `SelectionProvider` → `AppShell`.
+- **Data access:** only through `lib/api.ts` (typed fetch, bearer token from
+  `setTokenReader`). Supabase JS is used **only for auth**, never for data.
+- `next.config.mjs`: `reactStrictMode`, `images.unoptimized: true`.
+
+### Python (backend, `src/`)
+- FastAPI app in `src/main.py`; routers in `src/api/`; business logic in `src/services/`;
+  vendor code isolated in `src/rag/llm/<vendor>_provider.py` behind `LLMProvider`.
+- **Dependencies injected with `Depends`:** `require_user` → `get_library` / `get_provider`.
+  Tests override `get_provider` with a fake, which is why no test spends tokens.
+- Database access goes through `src/db/supabase.py` (PostgREST over httpx) **as the signed-in
+  user**. The SQLAlchemy/psycopg pins in `requirements.txt` are unused by the running code.
+
+### Request data flow
+Browser → same-origin `/api/*` → Vercel rewrite → FastAPI → (Supabase Auth verify) →
+service → provider router → Anthropic/Groq → Pydantic validation → JSON → browser. Library
+writes happen only on an explicit save. Diagrams:
+[data flow](screenshots/case-study/diagrams/data-flow.png).
+
+### Environment variables (names only; values live in `.env` / Vercel)
+- **Backend (read by `src/config.py`):** `APP_NAME`, `APP_ENV`, `DEBUG`, `BACKEND_PORT`,
+  `CORS_ALLOWED_ORIGINS`, `LLM_PROVIDER`, `LLM_MODEL`, `LLM_EFFORT`, `LLM_MAX_OUTPUT_TOKENS`,
+  `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_BASE_URL`,
+  `GEMINI_API_KEY` (retired), `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `OWNER_EMAIL`, `MAX_UPLOAD_SIZE_MB`, `ALLOWED_FILE_TYPES`,
+  `LONG_PAPER_CHAR_THRESHOLD`, `LONG_PAPER_CHUNK_SIZE`, `LONG_PAPER_CHUNK_OVERLAP`,
+  `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `JINA_API_KEY`
+  (embedding values unused at runtime).
+- **Frontend (public by design):** `NEXT_PUBLIC_SUPABASE_URL`,
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY`; `NEXT_PUBLIC_API_BASE_URL` for local dev only (**unset in
+  production**).
+- `.env.example` currently lacks `GROQ_*`, `ANTHROPIC_MODEL` and `OWNER_EMAIL`, and lists
+  unused names (`RATE_LIMIT_PER_MINUTE`, `RETRIEVAL_*`, `CHUNK_*`, `DATABASE_URL`). Treat
+  `config.py` as authoritative.
+
+### Deployment assumptions
+- One Vercel project, `researchforge`: `services.frontend` (root `app/`, Next.js) and
+  `services.backend` (FastAPI, `src.main:app`, `maxDuration` 300). Rewrites send
+  `/api/(.*)` and `/health` to the backend and everything else to the frontend.
+- **Not linked to GitHub:** deploy with `vercel deploy --prod`.
+- Migrations are applied by hand in the Supabase SQL editor, in number order.
+
+### Key decisions (see PROJECT_PLAN.md for the numbered log)
+- D3 folder layout (`src/` backend, `app/` frontend) · D5 LLM behind an interface (now Claude
+  + Groq) · D6 Jina 1024-d embeddings (locked, unused) · D7 one Vercel project, one origin ·
+  RLS as the user (never the service role) · whole-document context instead of RAG · refuse
+  invalid model output, never repair it.
